@@ -1,29 +1,40 @@
-FROM python:3.10-slim
+# استخدام نسخة بايثون خفيفة وقوية
+FROM python:3.11-slim-bookworm
 
-LABEL maintainer="OpenClaw Fortress"
+# 1. إعدادات النظام الأساسية
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HOME=/app
 
 WORKDIR /app
 
-# System dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
+# 2. تثبيت أدوات النظام (نحتاجها لاحقاً للمهارات)
+RUN apt-get update && apt-get install -y \
+    curl git build-essential supervisor \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install
+# 3. إنشاء مستخدم غير الـ Root (للأمان)
+RUN useradd -m -u 1000 user
+RUN chown -R user:user /app
+
+# 4. تثبيت المكتبات
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
 
-# Copy application
-COPY . .
+# 5. نسخ ملفات المشروع
+COPY --chown=user:user . .
 
-# Create directories
-RUN mkdir -p /app/data /app/logs
+# 6. إعداد المجلدات الخاصة بالبيانات
+RUN mkdir -p /app/data /app/logs && \
+    chown -R user:user /app/data /app/logs
 
-# Environment
-ENV OPENCLAW_ENV=production
-ENV PYTHONUNBUFFERED=1
-ENV PORT=7860
+# 7. التبديل للمستخدم
+USER user
 
+# 8. المنافذ
 EXPOSE 7860
 
-CMD ["python", "app.py"]
+# 9. نقطة الانطلاق (Supervisord)
+CMD ["supervisord", "-c", "supervisord.conf"]

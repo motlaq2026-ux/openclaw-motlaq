@@ -1,120 +1,71 @@
-#!/usr/bin/env python3
-"""
-OpenClaw Fortress - Gradio AI Interface
-"""
-
 import os
 import asyncio
 import logging
+import threading
 import gradio as gr
-import httpx
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Simple logging
-logging.basicConfig(level=logging.INFO)
+# --- 1. إعداد السجلات (Logging) ---
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
-# Keys from environment
-CEREBRAS_KEY = os.getenv("CEREBRAS_KEY")
+# --- 2. إعداد المتغيرات (Environment) ---
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GROQ_KEY = os.getenv("GROQ_KEY")
+CEREBRAS_KEY = os.getenv("CEREBRAS_KEY")
 
-SYSTEM_PROMPT = """أنت OpenClaw Fortress - مساعد ذكي متقدم.
-تحدث بلغة المستخدم (عربي أو إنجليزي).
-كن مفيداً وودوداً وموجزاً."""
+# --- 3. منطق الذكاء (The Core Brain) ---
+# هنا سنضيف لاحقاً استدعاء الـ Skills والـ MCP
+async def chat_logic(user_message):
+    # محاكاة الرد مؤقتاً للتأكد من عمل النظام
+    return f"🦞 OpenClaw Base: استقبلت رسالتك: {user_message}\n(النظام يعمل بنجاح وجاهز للتوسع)"
 
+# --- 4. واجهة تيليجرام (Telegram Bot) ---
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text('🦞 أهلاً بك في قلعة OpenClaw! النظام الأساسي يعمل.')
 
-async def get_cerebras(message: str) -> str:
-    if not CEREBRAS_KEY:
-        return None
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        try:
-            r = await client.post(
-                "https://api.cerebras.ai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {CEREBRAS_KEY}", "Content-Type": "application/json"},
-                json={
-                    "model": "llama-3.3-70b",
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": message}
-                    ]
-                }
-            )
-            if r.status_code == 200:
-                return r.json()["choices"][0]["message"]["content"]
-        except Exception as e:
-            logger.error(f"Cerebras error: {e}")
-    return None
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_text = update.message.text
+    response = await chat_logic(user_text)
+    await update.message.reply_text(response)
 
-
-async def get_groq(message: str) -> str:
-    if not GROQ_KEY:
-        return None
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        try:
-            r = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
-                json={
-                    "model": "llama-3.1-8b-instant",
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": message}
-                    ]
-                }
-            )
-            if r.status_code == 200:
-                return r.json()["choices"][0]["message"]["content"]
-        except Exception as e:
-            logger.error(f"Groq error: {e}")
-    return None
-
-
-async def get_ai_response(message: str) -> str:
-    # Try Cerebras first
-    response = await get_cerebras(message)
-    if response:
-        logger.info("Response from Cerebras")
-        return response
+async def run_telegram_bot():
+    if not TELEGRAM_TOKEN:
+        logger.warning("⚠️ Telegram Token not found! Bot will not start.")
+        return
     
-    # Try Groq
-    response = await get_groq(message)
-    if response:
-        logger.info("Response from Groq")
-        return response
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    return "❌ عذراً، خدمات AI غير متاحة. أضف CEREBRAS_KEY أو GROQ_KEY في Settings."
+    logger.info("🚀 Starting Telegram Bot...")
+    await application.run_polling()
 
+# --- 5. واجهة الويب (Gradio Web Interface) ---
+def web_chat(message, history):
+    # Gradio doesn't support async naturally in simple mode, doing sync wrapper
+    return asyncio.run(chat_logic(message))
 
-def chat(message: str, history: list) -> str:
-    return asyncio.run(get_ai_response(message))
+# --- 6. التشغيل المتوازي (Dual Launch) ---
+def start_services():
+    # تشغيل تيليجرام في Thread منفصل
+    if TELEGRAM_TOKEN:
+        telegram_thread = threading.Thread(target=lambda: asyncio.run(run_telegram_bot()))
+        telegram_thread.daemon = True
+        telegram_thread.start()
 
-
-def main():
-    logger.info("🦞 Starting OpenClaw Fortress...")
-    
-    if not CEREBRAS_KEY and not GROQ_KEY:
-        logger.warning("No AI provider configured!")
-    
+    # تشغيل واجهة الويب
     demo = gr.ChatInterface(
-        chat,
-        title="🦞 OpenClaw Fortress",
-        description="""### مساعد ذكي مجاني 100%
-
-**الميزات:**
-- ✅ Cerebras AI (1M tokens/day)
-- ✅ Groq AI (Fast inference)
-- ✅ بدون بطاقة ائتمان
-
-🦞 The Lobster Way""",
-        examples=[
-            "مرحبا!",
-            "What is AI?",
-            "ساعدني في Python",
-        ],
+        fn=web_chat,
+        title="🦞 OpenClaw Fortress (Base)",
+        description="Core System Active. Ready for Skill Injection.",
+        examples=["System Check", "Ping"]
     )
-    
-    logger.info("Starting Gradio...")
     demo.launch(server_name="0.0.0.0", server_port=7860, share=False)
 
-
 if __name__ == "__main__":
-    main()
+    start_services()
