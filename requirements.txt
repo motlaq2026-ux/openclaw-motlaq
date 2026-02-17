@@ -1,6 +1,14 @@
-openclaw
-python-telegram-bot==21.0
-gradio==4.19.2
+# AI & HTTP
 httpx==0.26.0
+gradio==4.19.2
+
+# Telegram
+python-telegram-bot==21.0
+
+# Utils
 python-dotenv==1.0.0
 structlog==24.1.0
+pydantic==2.5.0
+
+# OpenClaw from GitHub (not on PyPI)
+# Will be installed in Dockerfile
