@@ -2,13 +2,13 @@
 fastapi
 uvicorn
 gradio>=4.19.0
-python-telegram-bot>=21.0
 requests
 python-dotenv
 supervisor
 aiohttp
 
 # AI & Tools
+openai
 groq
 duckduckgo-search
 beautifulsoup4
