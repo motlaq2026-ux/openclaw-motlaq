@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-OpenClaw Fortress - Main Entry
-Installs and runs OpenClaw automatically
+OpenClaw Fortress - Fallback Gradio Interface
+Direct AI chat without OpenClaw dependency
 """
 
 import os
-import sys
-import subprocess
 import asyncio
-import threading
 import structlog
+import gradio as gr
+import httpx
 
 # Configure logging
 structlog.configure(
@@ -22,124 +21,114 @@ structlog.configure(
 
 logger = structlog.get_logger()
 
+# Keys from environment
+CEREBRAS_KEY = os.getenv("CEREBRAS_KEY")
+GROQ_KEY = os.getenv("GROQ_KEY")
+DEEPSEEK_KEY = os.getenv("DEEPSEEK_KEY")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-def ensure_openclaw_installed():
-    """Ensure OpenClaw is installed and updated"""
-    try:
-        import openclaw
-        logger.info("OpenClaw already installed")
-    except ImportError:
-        logger.info("Installing OpenClaw...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "openclaw"])
-        logger.info("OpenClaw installed")
+SYSTEM_PROMPT = """أنت OpenClaw Fortress - مساعد ذكي متقدم.
+
+قواعدك:
+1. تحدث بلغة المستخدم (عربي أو إنجليزي)
+2. كن مفيداً وودوداً وموجزاً
+3. إذا سُئلت عن شيء لا تعرفه، قل ذلك بصراحة"""
 
 
-def check_environment():
-    """Check required secrets"""
-    missing = []
-    if not os.getenv("CEREBRAS_KEY") and not os.getenv("GROQ_KEY") and not os.getenv("DEEPSEEK_KEY"):
-        missing.append("AI Provider (CEREBRAS_KEY, GROQ_KEY, or DEEPSEEK_KEY)")
+async def get_cerebras(message: str) -> str:
+    if not CEREBRAS_KEY:
+        return None
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            r = await client.post(
+                "https://api.cerebras.ai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {CEREBRAS_KEY}", "Content-Type": "application/json"},
+                json={
+                    "model": "llama-3.3-70b",
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": message}
+                    ]
+                }
+            )
+            if r.status_code == 200:
+                return r.json()["choices"][0]["message"]["content"]
+        except Exception as e:
+            logger.error("Cerebras error", error=str(e))
+    return None
+
+
+async def get_groq(message: str) -> str:
+    if not GROQ_KEY:
+        return None
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            r = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
+                json={
+                    "model": "llama-3.1-8b-instant",
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": message}
+                    ]
+                }
+            )
+            if r.status_code == 200:
+                return r.json()["choices"][0]["message"]["content"]
+        except Exception as e:
+            logger.error("Groq error", error=str(e))
+    return None
+
+
+async def get_ai_response(message: str) -> str:
+    # Try Cerebras first (fastest)
+    response = await get_cerebras(message)
+    if response:
+        logger.info("Response from Cerebras")
+        return response
     
-    if missing:
-        logger.warning("Missing environment", missing=missing)
+    # Try Groq
+    response = await get_groq(message)
+    if response:
+        logger.info("Response from Groq")
+        return response
+    
+    return "❌ عذراً، خدمات AI غير متاحة. تأكد من إضافة API keys في Settings."
+
+
+def chat(message: str, history: list) -> str:
+    return asyncio.run(get_ai_response(message))
 
 
 def main():
     logger.info("🦞 Starting OpenClaw Fortress...")
     
-    # Ensure OpenClaw is installed
-    ensure_openclaw_installed()
+    # Check AI providers
+    if not CEREBRAS_KEY and not GROQ_KEY:
+        logger.warning("No AI provider configured!")
     
-    # Check environment
-    check_environment()
-    
-    # Start OpenClaw Gateway
-    logger.info("Starting OpenClaw Gateway...")
-    
-    os.environ["OPENCLAW_HOST"] = "0.0.0.0"
-    os.environ["OPENCLAW_PORT"] = "7860"
-    
-    try:
-        subprocess.run([
-            sys.executable, "-m", "openclaw", 
-            "gateway", "start", 
-            "--host", "0.0.0.0", 
-            "--port", "7860"
-        ])
-    except KeyboardInterrupt:
-        logger.info("Shutting down...")
-    except Exception as e:
-        logger.error("Error starting OpenClaw", error=str(e))
-        # Fallback: start simple gradio interface
-        start_fallback_interface()
-
-
-def start_fallback_interface():
-    """Fallback Gradio interface if OpenClaw fails"""
-    import gradio as gr
-    import httpx
-    
-    async def get_ai_response(message: str) -> str:
-        # Try Cerebras first
-        cerebras_key = os.getenv("CEREBRAS_KEY")
-        if cerebras_key:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                try:
-                    r = await client.post(
-                        "https://api.cerebras.ai/v1/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {cerebras_key}",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "model": "llama-3.3-70b",
-                            "messages": [
-                                {"role": "system", "content": "أنت مساعد ذكي. تحدث بلغة المستخدم."},
-                                {"role": "user", "content": message}
-                            ]
-                        }
-                    )
-                    if r.status_code == 200:
-                        return r.json()["choices"][0]["message"]["content"]
-                except Exception as e:
-                    logger.error("Cerebras error", error=str(e))
-        
-        # Try Groq
-        groq_key = os.getenv("GROQ_KEY")
-        if groq_key:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                try:
-                    r = await client.post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {groq_key}",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "model": "llama-3.1-8b-instant",
-                            "messages": [
-                                {"role": "system", "content": "أنت مساعد ذكي. تحدث بلغة المستخدم."},
-                                {"role": "user", "content": message}
-                            ]
-                        }
-                    )
-                    if r.status_code == 200:
-                        return r.json()["choices"][0]["message"]["content"]
-                except Exception as e:
-                    logger.error("Groq error", error=str(e))
-        
-        return "❌ عذراً، خدمات AI غير متاحة حالياً."
-    
-    def chat(message, history):
-        return asyncio.run(get_ai_response(message))
-    
+    # Create interface
     demo = gr.ChatInterface(
         chat,
         title="🦞 OpenClaw Fortress",
-        description="### مساعد ذكي مجاني 100%\n\n🦞 The Lobster Way",
+        description="""### مساعد ذكي مجاني 100%
+
+**الميزات:**
+- ✅ Cerebras AI (1M tokens/day)
+- ✅ Groq AI (Fast inference)
+- ✅ بدون بطاقة ائتمان
+
+🦞 The Lobster Way""",
+        examples=[
+            "مرحبا! كيف حالك؟",
+            "What is artificial intelligence?",
+            "ساعدني في كتابة كود Python",
+            "اشرح لي الذكاء الاصطناعي",
+        ],
     )
     
-    logger.info("Starting fallback Gradio interface...")
+    logger.info("Starting Gradio interface...")
     demo.launch(server_name="0.0.0.0", server_port=7860, share=False)
 
 
