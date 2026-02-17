@@ -4,12 +4,8 @@ import asyncio
 from duckduckgo_search import DDGS
 from groq import Groq
 
-# إعداد العميل
-client = Groq(api_key=os.getenv("GROQ_KEY"))
-
-# --- 1. الأدوات (The Skills) ---
+# --- أدوات البحث ---
 def web_search(query):
-    """البحث في الإنترنت باستخدام DuckDuckGo"""
     try:
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=5))
@@ -17,43 +13,30 @@ def web_search(query):
     except Exception as e:
         return f"Error searching: {str(e)}"
 
-def calculator(expression):
-    """آلة حاسبة دقيقة"""
-    try:
-        return str(eval(expression, {"__builtins__": None}, {}))
-    except:
-        return "Error in calculation"
-
-# --- 2. العقل المدبر (The Brain) ---
-SYSTEM_PROMPT = """
-أنت OpenClaw، مساعد ذكي وقوي جداً (نسخة The Lobster Way 🦞).
-لديك صلاحيات للبحث في الإنترنت والحساب.
-- إذا سأل المستخدم عن معلومة حديثة، استخدم أداة البحث فوراً.
-- إذا طلب حسابات، احسبها بدقة.
-- رد دائماً باللهجة المصرية الودودة أو الفصحى حسب الطلب.
-- كن مختصراً ومفيداً.
-"""
-
+# --- العقل المدبر (Safe Mode) ---
 async def process_query(user_text):
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_text}
-    ]
-    
-    # 1. التفكير المبدئي
+    # تحميل المفتاح عند الطلب فقط (عشان التطبيق مايقعش في البداية)
+    api_key = os.getenv("GROQ_KEY")
+    if not api_key:
+        return "⚠️ **خطأ:** مفتاح GROQ_KEY غير موجود! تأكد من إضافته في إعدادات Space Secrets."
+
     try:
-        # سنستخدم Llama3 لأنه سريع وذكي في Groq
+        client = Groq(api_key=api_key)
+        
+        messages = [
+            {
+                "role": "system", 
+                "content": "أنت OpenClaw، مساعد ذكي باللهجة المصرية. استخدم البحث عند الحاجة."
+            },
+            {"role": "user", "content": user_text}
+        ]
+        
         completion = client.chat.completions.create(
             model="llama3-70b-8192",
             messages=messages,
-            temperature=0.5,
+            temperature=0.7,
             max_tokens=1024
         )
-        response = completion.choices[0].message.content
-        
-        # (هنا يمكن تطوير الكود ليعمل بنظام Function Calling تلقائي مستقبلاً)
-        # حالياً، هذا "تفكير سريع" للرد المباشر.
-        
-        return response
+        return completion.choices[0].message.content
     except Exception as e:
         return f"🦞 حدث خطأ في المعالجة: {str(e)}"
