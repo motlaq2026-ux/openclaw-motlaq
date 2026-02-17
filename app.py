@@ -5,65 +5,59 @@ import threading
 import gradio as gr
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from brain import process_query  # استدعاء المخ الجديد
 
-# --- 1. إعداد السجلات (Logging) ---
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+# --- Setup ---
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- 2. إعداد المتغيرات (Environment) ---
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-GROQ_KEY = os.getenv("GROQ_KEY")
-CEREBRAS_KEY = os.getenv("CEREBRAS_KEY")
 
-# --- 3. منطق الذكاء (The Core Brain) ---
-# هنا سنضيف لاحقاً استدعاء الـ Skills والـ MCP
-async def chat_logic(user_message):
-    # محاكاة الرد مؤقتاً للتأكد من عمل النظام
-    return f"🦞 OpenClaw Base: استقبلت رسالتك: {user_message}\n(النظام يعمل بنجاح وجاهز للتوسع)"
-
-# --- 4. واجهة تيليجرام (Telegram Bot) ---
+# --- Telegram Bot ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('🦞 أهلاً بك في قلعة OpenClaw! النظام الأساسي يعمل.')
+    await update.message.reply_text('🦞 جاهز يا باشا! أنا OpenClaw النسخة النووية. اسألني في أي حاجة.')
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
-    response = await chat_logic(user_text)
-    await update.message.reply_text(response)
+    # إظهار مؤشر الكتابة
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    
+    # المعالجة عبر المخ
+    response = await process_query(user_text)
+    
+    # الرد (تقسيم الرسالة لو طويلة)
+    if len(response) > 4000:
+        for x in range(0, len(response), 4000):
+            await update.message.reply_text(response[x:x+4000])
+    else:
+        await update.message.reply_text(response)
 
 async def run_telegram_bot():
     if not TELEGRAM_TOKEN:
-        logger.warning("⚠️ Telegram Token not found! Bot will not start.")
+        logger.warning("⚠️ No Telegram Token found!")
         return
-    
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    logger.info("🚀 Starting Telegram Bot...")
-    await application.run_polling()
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    logger.info("🚀 Telegram Bot Started!")
+    await app.run_polling()
 
-# --- 5. واجهة الويب (Gradio Web Interface) ---
+# --- Web Interface ---
 def web_chat(message, history):
-    # Gradio doesn't support async naturally in simple mode, doing sync wrapper
-    return asyncio.run(chat_logic(message))
+    return asyncio.run(process_query(message))
 
-# --- 6. التشغيل المتوازي (Dual Launch) ---
+# --- Main Execution ---
 def start_services():
-    # تشغيل تيليجرام في Thread منفصل
+    # Start Telegram
     if TELEGRAM_TOKEN:
-        telegram_thread = threading.Thread(target=lambda: asyncio.run(run_telegram_bot()))
-        telegram_thread.daemon = True
-        telegram_thread.start()
+        t = threading.Thread(target=lambda: asyncio.run(run_telegram_bot()), daemon=True)
+        t.start()
 
-    # تشغيل واجهة الويب
+    # Start Web
     demo = gr.ChatInterface(
         fn=web_chat,
-        title="🦞 OpenClaw Fortress (Base)",
-        description="Core System Active. Ready for Skill Injection.",
-        examples=["System Check", "Ping"]
+        title="🦞 OpenClaw Fortress (Nuclear Edition)",
+        examples=["لخص لي آخر أخبار الذكاء الاصطناعي", "اشرح لي نظرية النسبية"]
     )
     demo.launch(server_name="0.0.0.0", server_port=7860, share=False)
 

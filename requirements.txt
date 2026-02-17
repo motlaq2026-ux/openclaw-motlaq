@@ -1,14 +1,17 @@
-# Core Dependencies
+# Core
 fastapi
 uvicorn
 gradio>=4.19.0
 python-telegram-bot>=21.0
 requests
-PyYAML
 python-dotenv
 supervisor
+aiohttp
 
-# AI Providers (SDKs)
+# AI & Tools
 groq
-cerebras_cloud_sdk
-openai
+duckduckgo-search
+beautifulsoup4
+pandas
+matplotlib
+sympy
