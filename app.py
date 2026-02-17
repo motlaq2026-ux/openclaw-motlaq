@@ -7,17 +7,22 @@ from fastapi.responses import JSONResponse, Response
 import uvicorn
 from brain import process_query
 
-# إعداد الـ Logger
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
-# --- FastAPI Webhook ---
+# --- FastAPI Webhook (Secure Mode) ---
 fast_app = FastAPI()
 
-@fast_app.post(f"/webhook/{TELEGRAM_TOKEN}")
-async def telegram_webhook(request: Request):
+# ⚠️ التعديل الأمني: استقبال التوكن كمتغير في الرابط
+@fast_app.post("/webhook/{token}")
+async def telegram_webhook(token: str, request: Request):
+    # 1. التحقق من التوكن (Security Check)
+    if token != TELEGRAM_TOKEN:
+        logger.warning("⛔ محاولة وصول غير مصرح بها للويب هوك!")
+        return Response(status_code=403)
+
     try:
         data = await request.json()
         message = data.get("message")
@@ -27,9 +32,11 @@ async def telegram_webhook(request: Request):
         chat_id = message["chat"]["id"]
         text = message.get("text", "")
 
-        # الرد الآلي
         if text:
+            # 2. المعالجة والرد
             reply_text = await process_query(text)
+            
+            # 3. الرد المباشر (Webhook Reply)
             return JSONResponse({
                 "method": "sendMessage",
                 "chat_id": chat_id,
@@ -43,7 +50,7 @@ async def telegram_webhook(request: Request):
 
 @fast_app.get("/")
 async def root():
-    return {"status": "OpenClaw Fortress is Running 🦞"}
+    return {"status": "🦞 OpenClaw Fortress is Secure & Running"}
 
 # --- Gradio Interface ---
 def web_chat(message, history):
@@ -55,7 +62,6 @@ gradio_ui = gr.ChatInterface(
     examples=["مرحبا", "من أنت؟"]
 )
 
-# دمج التطبيقين
 app = gr.mount_gradio_app(fast_app, gradio_ui, path="/")
 
 if __name__ == "__main__":
