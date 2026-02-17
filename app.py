@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# --- Telegram Bot ---
+# --- Telegram Handlers ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text('🦞 جاهز يا باشا! أنا OpenClaw النسخة النووية. اسألني في أي حاجة.')
 
@@ -35,20 +35,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(response)
 
-async def run_telegram_bot():
+# --- Manual Telegram Runner (The Fix) ---
+async def run_telegram_manual():
+    """تشغيل البوت يدوياً لتجنب مشاكل الـ Loop"""
     if not TELEGRAM_TOKEN:
         logger.warning("⚠️ No Telegram Token found!")
         return
+
+    # 1. بناء التطبيق
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # 2. التهيئة والتشغيل اليدوي
+    logger.info("🚀 Starting Telegram Bot (Manual Mode)...")
+    await application.initialize()
+    await application.start()
     
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # 3. بدء استقبال التحديثات (Polling)
+    # نستخدم updater الموجود داخل التطبيق
+    await application.updater.start_polling(drop_pending_updates=True)
     
-    logger.info("🚀 Starting Telegram Bot (Background Mode)...")
-    
-    # 🔥 هنا الحل السحري: stop_signals=None
-    # هذا يمنع البوت من محاولة السيطرة على الـ Signals في الخلفية
-    await app.run_polling(stop_signals=None, drop_pending_updates=True)
+    # 4. إبقاء البوت حياً للأبد
+    # نستخدم Event لنجعل هذا التابع ينتظر إلى ما لا نهاية ولا يغلق
+    stop_signal = asyncio.Event()
+    await stop_signal.wait()  # سيبقى هنا للأبد
 
 # --- Web Interface ---
 def web_chat(message, history):
@@ -58,14 +69,15 @@ def web_chat(message, history):
 def start_services():
     # Start Telegram in Background Thread
     if TELEGRAM_TOKEN:
-        # نستخدم Loop جديد خاص بالـ Thread
-        def run_async_in_thread():
+        def thread_target():
+            # إنشاء Loop جديد خاص بهذا الـ Thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            loop.run_until_complete(run_telegram_bot())
+            # تشغيل البوت بالطريقة اليدوية
+            loop.run_until_complete(run_telegram_manual())
             loop.close()
-
-        t = threading.Thread(target=run_async_in_thread, daemon=True)
+            
+        t = threading.Thread(target=thread_target, daemon=True)
         t.start()
 
     # Start Web Interface (Main Thread)
