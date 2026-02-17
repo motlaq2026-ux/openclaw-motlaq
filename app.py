@@ -3,7 +3,7 @@ import asyncio
 import logging
 import gradio as gr
 from fastapi import FastAPI, Request, Response
-from telegram import Update
+from telegram import Update, User
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import uvicorn
 from brain import process_query
@@ -14,7 +14,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
 # ======== Telegram Handlers ========
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -24,8 +24,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     try:
         await context.bot.send_chat_action(
-            chat_id=update.effective_chat.id,
-            action="typing"
+            chat_id=update.effective_chat.id, action="typing"
         )
         response = await process_query(user_text)
         await update.message.reply_text(response)
@@ -33,7 +32,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error: {e}")
         await update.message.reply_text("🦞 حدث خطأ، حاول تاني!")
 
-# ======== Telegram App (بدون أي اتصال خارجي) ========
+# ======== Telegram App ========
 telegram_app: Application = None
 
 async def build_telegram_app():
@@ -42,20 +41,34 @@ async def build_telegram_app():
         logger.warning("TELEGRAM_BOT_TOKEN غير موجود.")
         return
 
-    # updater=None مهم جداً → يمنع أي اتصال صادر لـ Telegram
+    # بناء التطبيق بدون updater (بدون polling)
     telegram_app = (
         Application.builder()
         .token(TELEGRAM_TOKEN)
         .updater(None)
         .build()
     )
+
+    # ⚡ الحل الجوهري: نحقن بيانات البوت يدوياً
+    # هذا يمنع initialize() من استدعاء getMe() الذي يحتاج اتصال بـ Telegram
+    bot_id = int(TELEGRAM_TOKEN.split(":")[0])
+    telegram_app.bot._bot = User(
+        id=bot_id,
+        first_name="OpenClaw",
+        is_bot=True,
+        username="openclaw_bot",
+    )
+    logger.info(f"✅ Bot info injected manually (ID: {bot_id}), skipping getMe().")
+
     telegram_app.add_handler(CommandHandler("start", start_command))
     telegram_app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
     )
+
+    # initialize() الآن لن يستدعي getMe() لأن _bot محدد مسبقاً
     await telegram_app.initialize()
     await telegram_app.start()
-    logger.info("Telegram app ready (webhook mode, no outbound calls).")
+    logger.info("✅ Telegram app started successfully (zero outbound calls).")
 
 # ======== FastAPI ========
 fast_app = FastAPI()
@@ -66,10 +79,11 @@ async def on_startup():
 
 @fast_app.post("/webhook/{token}")
 async def telegram_webhook(token: str, request: Request):
+    """يستقبل التحديثات من Telegram (inbound فقط)"""
     if token != TELEGRAM_TOKEN:
         return Response(status_code=403)
     if telegram_app is None:
-        return Response(status_code=500)
+        return Response(status_code=503)
     try:
         data = await request.json()
         update = Update.de_json(data, telegram_app.bot)
@@ -80,7 +94,14 @@ async def telegram_webhook(token: str, request: Request):
 
 @fast_app.get("/health")
 async def health():
-    return {"status": "ok"}
+    space_host = os.getenv("SPACE_HOST", "")
+    token_preview = TELEGRAM_TOKEN[:10] + "..." if TELEGRAM_TOKEN else "NOT SET"
+    return {
+        "status": "ok",
+        "telegram_ready": telegram_app is not None,
+        "token_preview": token_preview,
+        "webhook_url": f"https://{space_host}/webhook/{TELEGRAM_TOKEN}" if space_host else "Set SPACE_HOST env var",
+    }
 
 # ======== Gradio ========
 def web_chat(message, history):
