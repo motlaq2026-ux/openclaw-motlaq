@@ -5,7 +5,7 @@ import threading
 import gradio as gr
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from brain import process_query  # استدعاء المخ الجديد
+from brain import process_query
 
 # --- Setup ---
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -23,7 +23,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
     
     # المعالجة عبر المخ
-    response = await process_query(user_text)
+    try:
+        response = await process_query(user_text)
+    except Exception as e:
+        response = f"حدث خطأ داخلي: {str(e)}"
     
     # الرد (تقسيم الرسالة لو طويلة)
     if len(response) > 4000:
@@ -36,11 +39,16 @@ async def run_telegram_bot():
     if not TELEGRAM_TOKEN:
         logger.warning("⚠️ No Telegram Token found!")
         return
+    
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    logger.info("🚀 Telegram Bot Started!")
-    await app.run_polling()
+    
+    logger.info("🚀 Starting Telegram Bot (Background Mode)...")
+    
+    # 🔥 هنا الحل السحري: stop_signals=None
+    # هذا يمنع البوت من محاولة السيطرة على الـ Signals في الخلفية
+    await app.run_polling(stop_signals=None, drop_pending_updates=True)
 
 # --- Web Interface ---
 def web_chat(message, history):
@@ -48,12 +56,19 @@ def web_chat(message, history):
 
 # --- Main Execution ---
 def start_services():
-    # Start Telegram
+    # Start Telegram in Background Thread
     if TELEGRAM_TOKEN:
-        t = threading.Thread(target=lambda: asyncio.run(run_telegram_bot()), daemon=True)
+        # نستخدم Loop جديد خاص بالـ Thread
+        def run_async_in_thread():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(run_telegram_bot())
+            loop.close()
+
+        t = threading.Thread(target=run_async_in_thread, daemon=True)
         t.start()
 
-    # Start Web
+    # Start Web Interface (Main Thread)
     demo = gr.ChatInterface(
         fn=web_chat,
         title="🦞 OpenClaw Fortress (Nuclear Edition)",
