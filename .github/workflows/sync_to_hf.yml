@@ -1,0 +1,24 @@
+name: Sync to Hugging Face Hub
+on:
+  push:
+    branches: [main]
+  # للسماح بالتشغيل اليدوي أيضاً
+  workflow_dispatch:
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true
+      
+      - name: Push to hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config --global user.email "bot@github.com"
+          git config --global user.name "GitHub Action Bot"
+          git remote add hf https://motlaq2026-ux:$HF_TOKEN@huggingface.co/spaces/motlaq2026-ux/openclaw-motlaq
+          git push hf main --force
