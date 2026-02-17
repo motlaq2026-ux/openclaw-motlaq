@@ -4,27 +4,21 @@ import io
 import contextlib
 import traceback
 from duckduckgo_search import DDGS
-from groq import Groq
+from openai import OpenAI
+from config import load_config, get_active_model, get_api_key
 
-CONFIG_FILE = "config.json"
-
-def load_config():
-    """تحميل الإعدادات من ملف JSON"""
-    try:
-        with open(CONFIG_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {"api_key": "", "model": "llama3-70b-8192", "system_prompt": "أنت مساعد ذكي."}
-
+# --- 1. Python REPL ---
 def python_repl(code):
     output = io.StringIO()
     try:
         with contextlib.redirect_stdout(output):
             exec(code, {'__builtins__': __builtins__}, {})
-        return output.getvalue()
+        result = output.getvalue()
+        return result if result else "Done (No Output)"
     except Exception:
         return traceback.format_exc()
 
+# --- 2. Web Search ---
 def web_search(query):
     try:
         with DDGS() as ddgs:
@@ -33,53 +27,65 @@ def web_search(query):
     except Exception as e:
         return f"Search Error: {str(e)}"
 
-async def process_query(user_text):
+# --- 3. Main Brain (reads from config.json) ---
+async def process_query(user_text: str) -> str:
     config = load_config()
-    api_key = config.get("api_key")
-    
-    # لو مفيش مفتاح، نبه المستخدم
+    model_cfg = get_active_model()
+
+    if not model_cfg:
+        return "⚠️ لم يتم إعداد أي نموذج. افتح الداشبورد لإضافة نموذج."
+
+    api_key = get_api_key(model_cfg)
     if not api_key:
-        return "⚠️ **تنبيه:** النظام غير مفعل! اذهب إلى تبويب '⚙️ الإعدادات' بالأعلى، أضف مفتاح Groq API، واضغط حفظ."
+        src = model_cfg.get('api_key_env', 'UNKNOWN') if model_cfg.get('api_key_source') == 'env' else 'القيمة المباشرة'
+        return f"⚠️ مفتاح API غير موجود. تحقق من: {src}"
 
-    try:
-        client = Groq(api_key=api_key)
-        
-        system_prompt = config.get("system_prompt", "أنت مساعد ذكي.")
-        # إضافة تعليمات الأدوات للبرومبت
-        full_system_prompt = system_prompt + """
-        \nلديك أدوات: python_repl, web_search.
-        استخدم الصيغة:
-        Action: [tool_name]
-        Input: [content]
-        """
-        
-        messages = [{"role": "system", "content": full_system_prompt}, {"role": "user", "content": user_text}]
+    base_url = model_cfg.get("base_url") or "https://api.groq.com/openai/v1"
+    model_id = model_cfg.get("model_id", "llama3-70b-8192")
+    system_prompt = config.get("system_prompt", "أنت مساعد ذكي.")
+    max_tokens = model_cfg.get("max_tokens", 1024)
+    temperature = model_cfg.get("temperature", 0.7)
 
-        for _ in range(5):
+    web_search_on = config.get("web_search_enabled", True)
+    repl_on = config.get("python_repl_enabled", True)
+
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_text}
+    ]
+
+    for _ in range(5):
+        try:
             completion = client.chat.completions.create(
-                model=config.get("model", "llama3-70b-8192"),
+                model=model_id,
                 messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
                 stop=["Observation:"]
             )
-            response = completion.choices[0].message.content
-            messages.append({"role": "assistant", "content": response})
+        except Exception as e:
+            return f"❌ خطأ في الاتصال بالنموذج: {e}"
 
-            if "Action:" in response and "Input:" in response:
+        response = completion.choices[0].message.content
+        messages.append({"role": "assistant", "content": response})
+
+        if "Action:" in response and "Input:" in response:
+            try:
                 action = response.split("Action:")[1].split("Input:")[0].strip()
                 inp = response.split("Input:")[1].strip()
-                
                 result = ""
-                if action == "python_repl":
+                if action == "python_repl" and repl_on:
                     code = inp.replace("```python", "").replace("```", "").strip()
                     result = python_repl(code)
-                elif action == "web_search":
+                elif action == "web_search" and web_search_on:
                     result = web_search(inp)
-                
+                else:
+                    result = "هذه الأداة معطلة حالياً."
                 messages.append({"role": "user", "content": f"Observation: {result}"})
-            else:
-                return response
-                
-        return messages[-1]["content"]
+            except Exception as e:
+                messages.append({"role": "user", "content": f"Observation: Error: {e}"})
+        else:
+            return response
 
-    except Exception as e:
-        return f"System Error: {str(e)}"
+    return messages[-1]["content"]
