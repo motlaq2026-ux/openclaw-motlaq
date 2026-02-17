@@ -1,38 +1,25 @@
 #!/usr/bin/env python3
 """
-OpenClaw Fortress - Fallback Gradio Interface
-Direct AI chat without OpenClaw dependency
+OpenClaw Fortress - Gradio AI Interface
 """
 
 import os
 import asyncio
-import structlog
+import logging
 import gradio as gr
 import httpx
 
-# Configure logging
-structlog.configure(
-    processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.add_log_level,
-        structlog.processors.ConsoleRenderer(colors=True)
-    ]
-)
-
-logger = structlog.get_logger()
+# Simple logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Keys from environment
 CEREBRAS_KEY = os.getenv("CEREBRAS_KEY")
 GROQ_KEY = os.getenv("GROQ_KEY")
-DEEPSEEK_KEY = os.getenv("DEEPSEEK_KEY")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 SYSTEM_PROMPT = """أنت OpenClaw Fortress - مساعد ذكي متقدم.
-
-قواعدك:
-1. تحدث بلغة المستخدم (عربي أو إنجليزي)
-2. كن مفيداً وودوداً وموجزاً
-3. إذا سُئلت عن شيء لا تعرفه، قل ذلك بصراحة"""
+تحدث بلغة المستخدم (عربي أو إنجليزي).
+كن مفيداً وودوداً وموجزاً."""
 
 
 async def get_cerebras(message: str) -> str:
@@ -54,7 +41,7 @@ async def get_cerebras(message: str) -> str:
             if r.status_code == 200:
                 return r.json()["choices"][0]["message"]["content"]
         except Exception as e:
-            logger.error("Cerebras error", error=str(e))
+            logger.error(f"Cerebras error: {e}")
     return None
 
 
@@ -77,12 +64,12 @@ async def get_groq(message: str) -> str:
             if r.status_code == 200:
                 return r.json()["choices"][0]["message"]["content"]
         except Exception as e:
-            logger.error("Groq error", error=str(e))
+            logger.error(f"Groq error: {e}")
     return None
 
 
 async def get_ai_response(message: str) -> str:
-    # Try Cerebras first (fastest)
+    # Try Cerebras first
     response = await get_cerebras(message)
     if response:
         logger.info("Response from Cerebras")
@@ -94,7 +81,7 @@ async def get_ai_response(message: str) -> str:
         logger.info("Response from Groq")
         return response
     
-    return "❌ عذراً، خدمات AI غير متاحة. تأكد من إضافة API keys في Settings."
+    return "❌ عذراً، خدمات AI غير متاحة. أضف CEREBRAS_KEY أو GROQ_KEY في Settings."
 
 
 def chat(message: str, history: list) -> str:
@@ -104,11 +91,9 @@ def chat(message: str, history: list) -> str:
 def main():
     logger.info("🦞 Starting OpenClaw Fortress...")
     
-    # Check AI providers
     if not CEREBRAS_KEY and not GROQ_KEY:
         logger.warning("No AI provider configured!")
     
-    # Create interface
     demo = gr.ChatInterface(
         chat,
         title="🦞 OpenClaw Fortress",
@@ -121,14 +106,13 @@ def main():
 
 🦞 The Lobster Way""",
         examples=[
-            "مرحبا! كيف حالك؟",
-            "What is artificial intelligence?",
-            "ساعدني في كتابة كود Python",
-            "اشرح لي الذكاء الاصطناعي",
+            "مرحبا!",
+            "What is AI?",
+            "ساعدني في Python",
         ],
     )
     
-    logger.info("Starting Gradio interface...")
+    logger.info("Starting Gradio...")
     demo.launch(server_name="0.0.0.0", server_port=7860, share=False)
 
 
