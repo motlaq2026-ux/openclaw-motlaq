@@ -11,6 +11,7 @@ import { Logs } from './components/Logs';
 import { Settings } from './components/Settings';
 import { Testing } from './components/Testing';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import { AnimatePresence, motion } from 'framer-motion';
 
 const pages = {
   dashboard: Dashboard,
@@ -25,6 +26,12 @@ const pages = {
 };
 
 const pageKeys = Object.keys(pages);
+
+const pageVariants = {
+  initial: { opacity: 0, x: 20 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: -20 },
+};
 
 function App() {
   const { currentPage, setCurrentPage, loadAll, loading, error } = useAppStore();
@@ -42,7 +49,7 @@ function App() {
       if (e.key === '?') {
         alert(`Keyboard Shortcuts:
         
-1-8: Navigate pages
+1-9: Navigate pages
 R: Refresh data
 H: Go to Dashboard
 /: Focus search (when available)
@@ -76,19 +83,30 @@ Press any key to close this help.`);
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-dark-950">
-        <div className="text-center">
-          <div className="text-6xl mb-4 animate-bounce">🦞</div>
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
+        >
+          <motion.div 
+            className="text-6xl mb-4"
+            animate={{ y: [0, -10, 0] }}
+            transition={{ repeat: Infinity, duration: 1 }}
+          >
+            🦞
+          </motion.div>
           <p className="text-gray-400">Loading OpenClaw Fortress...</p>
           <div className="mt-4 flex justify-center gap-1">
             {[0, 1, 2].map((i) => (
-              <div
+              <motion.div
                 key={i}
-                className="w-2 h-2 bg-claw-500 rounded-full animate-pulse"
-                style={{ animationDelay: `${i * 0.15}s` }}
+                className="w-2 h-2 bg-claw-500 rounded-full"
+                animate={{ opacity: [0.3, 1, 0.3] }}
+                transition={{ repeat: Infinity, duration: 1, delay: i * 0.15 }}
               />
             ))}
           </div>
-        </div>
+        </motion.div>
       </div>
     );
   }
@@ -96,12 +114,16 @@ Press any key to close this help.`);
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-dark-950">
-        <div className="text-center max-w-md">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center max-w-md"
+        >
           <div className="text-6xl mb-4">⚠️</div>
           <h1 className="text-xl font-bold text-white mb-2">Something went wrong</h1>
           <p className="text-gray-400 mb-4">{error}</p>
           <button onClick={loadAll} className="btn-primary">Try Again</button>
-        </div>
+        </motion.div>
       </div>
     );
   }
@@ -113,7 +135,19 @@ Press any key to close this help.`);
       <div className="min-h-screen flex bg-dark-950">
         <Sidebar />
         <main className="flex-1 overflow-hidden">
-          <Page />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentPage}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.2 }}
+              className="h-full"
+            >
+              <Page />
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
     </ErrorBoundary>
