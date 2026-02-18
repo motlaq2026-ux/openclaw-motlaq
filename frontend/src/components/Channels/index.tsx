@@ -1,13 +1,18 @@
 import { useAppStore } from '../../stores/appStore';
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { Loader2, MessageCircle, Hash, Slack, Users, CheckCircle, XCircle, TestTube, Plus, Trash2, Eye, EyeOff, Bot, Edit, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, MessageCircle, Hash, Slack, Users, CheckCircle, XCircle, TestTube, Plus, Trash2, Eye, EyeOff, Bot, Edit, ChevronDown, ChevronUp, Apple, Bell, MessageSquare, MessagesSquare } from 'lucide-react';
 import clsx from 'clsx';
 
 const channelTypes = [
   { id: 'telegram', name: 'Telegram', icon: MessageCircle, color: 'text-blue-400', description: 'Telegram bot integration' },
   { id: 'discord', name: 'Discord', icon: Hash, color: 'text-indigo-400', description: 'Discord bot integration' },
   { id: 'slack', name: 'Slack', icon: Slack, color: 'text-purple-400', description: 'Slack bot integration' },
+  { id: 'feishu', name: 'Feishu', icon: MessagesSquare, color: 'text-blue-500', description: 'Feishu/Lark integration' },
+  { id: 'imessage', name: 'iMessage', icon: Apple, color: 'text-green-400', description: 'macOS iMessage integration' },
+  { id: 'whatsapp', name: 'WhatsApp', icon: MessageCircle, color: 'text-green-500', description: 'WhatsApp integration' },
+  { id: 'wechat', name: 'WeChat', icon: MessageSquare, color: 'text-green-600', description: 'WeChat integration' },
+  { id: 'dingtalk', name: 'DingTalk', icon: Bell, color: 'text-blue-600', description: 'DingTalk integration' },
 ];
 
 interface TelegramUser {
@@ -688,6 +693,200 @@ export function Channels() {
                     className="input-base"
                     placeholder="xapp-..."
                   />
+                </div>
+              </div>
+            )}
+
+            {selected === 'feishu' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+                  <p className="text-xs text-amber-400">Requires @m1heng-clawd/feishu plugin</p>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">App ID</label>
+                  <input
+                    value={config.appId || ''}
+                    onChange={(e) => setConfig({ ...config, appId: e.target.value })}
+                    className="input-base"
+                    placeholder="Feishu App ID"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">App Secret</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={config.appSecret || ''}
+                      onChange={(e) => setConfig({ ...config, appSecret: e.target.value })}
+                      className="input-base pr-10"
+                      placeholder="Feishu App Secret"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Connection Mode</label>
+                  <select
+                    value={config.connectionMode || 'websocket'}
+                    onChange={(e) => setConfig({ ...config, connectionMode: e.target.value })}
+                    className="input-base"
+                  >
+                    <option value="websocket">WebSocket (Recommended)</option>
+                    <option value="webhook">Webhook</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Deployment Region</label>
+                  <select
+                    value={config.domain || 'feishu'}
+                    onChange={(e) => setConfig({ ...config, domain: e.target.value })}
+                    className="input-base"
+                  >
+                    <option value="feishu">China (feishu.cn)</option>
+                    <option value="lark">International (larksuite.com)</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {selected === 'imessage' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                  <p className="text-xs text-blue-400">macOS only - requires Messages access permission</p>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">DM Policy</label>
+                  <select
+                    value={config.dmPolicy || 'pairing'}
+                    onChange={(e) => setConfig({ ...config, dmPolicy: e.target.value })}
+                    className="input-base"
+                  >
+                    <option value="pairing">Pairing Mode</option>
+                    <option value="open">Open Mode</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Group Policy</label>
+                  <select
+                    value={config.groupPolicy || 'open'}
+                    onChange={(e) => setConfig({ ...config, groupPolicy: e.target.value })}
+                    className="input-base"
+                  >
+                    <option value="open">Open (Respond to all)</option>
+                    <option value="allowlist">Allowlist Only</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {selected === 'whatsapp' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+                  <p className="text-xs text-amber-400">Requires QR code scan to login</p>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">DM Policy</label>
+                  <select
+                    value={config.dmPolicy || 'pairing'}
+                    onChange={(e) => setConfig({ ...config, dmPolicy: e.target.value })}
+                    className="input-base"
+                  >
+                    <option value="pairing">Pairing Mode</option>
+                    <option value="open">Open Mode</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Group Policy</label>
+                  <select
+                    value={config.groupPolicy || 'open'}
+                    onChange={(e) => setConfig({ ...config, groupPolicy: e.target.value })}
+                    className="input-base"
+                  >
+                    <option value="open">Open (Respond to all)</option>
+                    <option value="allowlist">Allowlist Only</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {selected === 'wechat' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-xl">
+                  <p className="text-xs text-green-400">WeChat Official Account / Enterprise WeChat</p>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">App ID</label>
+                  <input
+                    value={config.appId || ''}
+                    onChange={(e) => setConfig({ ...config, appId: e.target.value })}
+                    className="input-base"
+                    placeholder="WeChat Open Platform App ID"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">App Secret</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={config.appSecret || ''}
+                      onChange={(e) => setConfig({ ...config, appSecret: e.target.value })}
+                      className="input-base pr-10"
+                      placeholder="WeChat App Secret"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {selected === 'dingtalk' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                  <p className="text-xs text-blue-400">DingTalk Open Platform integration</p>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">App Key</label>
+                  <input
+                    value={config.appKey || ''}
+                    onChange={(e) => setConfig({ ...config, appKey: e.target.value })}
+                    className="input-base"
+                    placeholder="DingTalk App Key"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">App Secret</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={config.appSecret || ''}
+                      onChange={(e) => setConfig({ ...config, appSecret: e.target.value })}
+                      className="input-base pr-10"
+                      placeholder="DingTalk App Secret"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
