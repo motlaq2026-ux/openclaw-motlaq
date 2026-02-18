@@ -1,9 +1,10 @@
 import { useAppStore } from '../../stores/appStore';
 import { api } from '../../lib/api';
+import { useTheme, ThemePicker } from '../../lib/theme.tsx';
 import { useState, useEffect } from 'react';
 import { 
   Download, Upload, Save, Loader2, Key, Plus, Trash2, Eye, EyeOff, Cpu, HardDrive, MemoryStick,
-  User, Shield, Globe, FileText, Clock, Zap, FolderOpen, Bell
+  User, Shield, Globe, FileText, Clock, Zap, FolderOpen, Bell, Palette
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -60,6 +61,7 @@ const TIMEZONES = [
 
 export function Settings() {
   const { loadAll } = useAppStore();
+  const { theme, setTheme } = useTheme();
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [envVars, setEnvVars] = useState<EnvVar[]>([]);
@@ -351,6 +353,15 @@ export function Settings() {
                     </select>
                   </div>
                 </div>
+              </div>
+
+              <div className="bg-dark-800 border border-dark-600 rounded-2xl p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <Palette size={20} className="text-claw-400" />
+                  <h3 className="text-lg font-semibold text-white">Theme</h3>
+                </div>
+                <p className="text-sm text-gray-400 mb-4">Choose your accent color</p>
+                <ThemePicker currentTheme={theme} onThemeChange={setTheme} />
               </div>
 
               {systemInfo && (
