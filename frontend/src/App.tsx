@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useAppStore } from './stores/appStore';
+import { AuthGate } from './components/Auth/AuthGate';
 import { Sidebar } from './components/Layout/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { AIConfig } from './components/AIConfig';
@@ -33,7 +34,7 @@ const pageVariants = {
   exit: { opacity: 0, x: -20 },
 };
 
-function App() {
+function AppContent() {
   const { currentPage, setCurrentPage, loadAll, loading, error } = useAppStore();
 
   useEffect(() => {
@@ -151,6 +152,14 @@ Press any key to close this help.`);
         </main>
       </div>
     </ErrorBoundary>
+  );
+}
+
+function App() {
+  return (
+    <AuthGate>
+      <AppContent />
+    </AuthGate>
   );
 }
 

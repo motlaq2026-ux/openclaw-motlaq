@@ -1,12 +1,165 @@
 import { useAppStore } from '../../stores/appStore';
-import { api } from '../../lib/api';
+import { api, APIError } from '../../lib/api';
 import { useTheme, ThemePicker } from '../../lib/theme.tsx';
 import { useState, useEffect } from 'react';
 import { 
   Download, Upload, Save, Loader2, Key, Plus, Trash2, Eye, EyeOff, Cpu, HardDrive, MemoryStick,
-  User, Shield, FileText, Zap, FolderOpen, Bell, Palette
+  User, Shield, FileText, Zap, FolderOpen, Bell, Palette, Check, X, AlertCircle
 } from 'lucide-react';
 import clsx from 'clsx';
+
+// API Key Settings Component
+function APIKeySettings() {
+  const [apiKey, setApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    // Load current API key from storage
+    const key = api.getApiKey();
+    if (key) {
+      setApiKey(key);
+    }
+  }, []);
+
+  const handleSave = async () => {
+    if (!apiKey.trim()) {
+      setMessage({ type: 'error', text: 'Please enter an API key' });
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage(null);
+
+    // Temporarily set the key to test it
+    api.setApiKey(apiKey.trim());
+
+    try {
+      // Test the key by calling an endpoint
+      await api.getSystemStatus();
+      setMessage({ type: 'success', text: 'API key saved and verified successfully!' });
+    } catch (err) {
+      // Clear the key on failure
+      api.clearApiKey();
+      
+      if (err instanceof APIError) {
+        setMessage({ type: 'error', text: err.message });
+      } else {
+        setMessage({ type: 'error', text: 'Failed to verify API key' });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleClear = () => {
+    api.clearApiKey();
+    setApiKey('');
+    setMessage({ type: 'success', text: 'API key cleared. You will be logged out.' });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-dark-800 border border-dark-600 rounded-2xl p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-lg bg-claw-500/20 flex items-center justify-center">
+            <Key className="text-claw-400" size={20} />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-white">API Key Management</h3>
+            <p className="text-sm text-gray-400">Configure your API key for authentication</p>
+          </div>
+        </div>
+
+        {message && (
+          <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${
+            message.type === 'success' 
+              ? 'bg-green-500/10 border border-green-500/30' 
+              : 'bg-red-500/10 border border-red-500/30'
+          }`}>
+            {message.type === 'success' ? (
+              <Check size={16} className="text-green-400" />
+            ) : (
+              <AlertCircle size={16} className="text-red-400" />
+            )}
+            <p className={`text-sm ${message.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+              {message.text}
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">API Key</label>
+            <div className="relative">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="oc_admin_xxxxx"
+                className="input-base w-full pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey(!showKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+              >
+                {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Your API key is stored locally in your browser and never sent to any third-party services.
+            </p>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleSave}
+              disabled={isLoading}
+              className="btn-primary flex items-center gap-2"
+            >
+              {isLoading ? (
+                <Loader2 className="animate-spin" size={16} />
+              ) : (
+                <Save size={16} />
+              )}
+              Save & Verify
+            </button>
+            
+            {apiKey && (
+              <button
+                onClick={handleClear}
+                className="btn-secondary flex items-center gap-2 text-red-400"
+              >
+                <X size={16} />
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-dark-800 border border-dark-600 rounded-2xl p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Where to Find Your API Key</h3>
+        <div className="space-y-3 text-sm text-gray-400">
+          <p>
+            1. Check the server console logs when starting the application.
+          </p>
+          <p>
+            2. Look for the line: <code className="bg-dark-700 px-2 py-1 rounded text-claw-400">🔐 Generated admin API key: oc_admin_xxxxx</code>
+          </p>
+          <p>
+            3. Copy this key and paste it above.
+          </p>
+          <p className="text-yellow-400 mt-4">
+            ⚠️ The API key is only shown once on first startup. If you lose it, you may need to reset the authentication system.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface EnvVar {
   key: string;
@@ -72,7 +225,7 @@ export function Settings() {
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   
-  const [activeTab, setActiveTab] = useState<'identity' | 'advanced' | 'personality' | 'env' | 'backup'>('identity');
+  const [activeTab, setActiveTab] = useState<'identity' | 'advanced' | 'personality' | 'env' | 'apikey' | 'backup'>('identity');
   
   const [identity, setIdentity] = useState<IdentityConfig>({
     bot_name: 'Clawd',
@@ -282,6 +435,7 @@ export function Settings() {
     { id: 'advanced', label: 'Advanced', icon: Shield },
     { id: 'personality', label: 'Personality', icon: FileText },
     { id: 'env', label: 'Environment', icon: Key },
+    { id: 'apikey', label: 'API Key', icon: Key },
     { id: 'backup', label: 'Backup', icon: Download },
   ] as const;
 
@@ -659,6 +813,10 @@ export function Settings() {
                 </div>
               )}
             </div>
+          )}
+
+          {activeTab === 'apikey' && (
+            <APIKeySettings />
           )}
 
           {activeTab === 'backup' && (
