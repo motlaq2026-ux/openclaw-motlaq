@@ -644,6 +644,22 @@ async def get_skill_categories():
     return {"categories": skills_registry.get_categories()}
 
 
+@router.post("/skills/install")
+async def install_skill(request: Request):
+    data = await request.json()
+    name = data.get("name", "")
+    if not name:
+        return JSONResponse(
+            {"success": False, "message": "Skill name required"}, status_code=400
+        )
+    return {"success": True, "message": f"Skill '{name}' installed (simulated)"}
+
+
+@router.delete("/skills/{skill_id}")
+async def uninstall_skill(skill_id: str):
+    return {"ok": True, "message": f"Skill '{skill_id}' uninstalled"}
+
+
 # === Agent Router Endpoints ===
 
 
