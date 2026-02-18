@@ -18,7 +18,7 @@ interface ServiceStatus {
 }
 
 export function Dashboard() {
-  const { aiConfig, officialProviders, loadAIConfig, loading } = useAppStore();
+  const { aiConfig, officialProviders, loadAIConfig, loading, setCurrentPage } = useAppStore();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<OfficialProvider | null>(null);
   const [apiKey, setApiKey] = useState('');
@@ -87,15 +87,15 @@ export function Dashboard() {
     try {
       const { logs: logLines } = await api.getLogs(undefined, 50);
       setLogs(logLines.map(l => `[${l.level}] ${l.message}`));
-    } catch {
-      // Silent fail
+    } catch (error) {
+      console.error('Failed to fetch logs:', error);
     }
   };
 
   const handleStart = async () => {
     setActionLoading(true);
     try {
-      await api.health();
+      await api.startService();
       await fetchServiceStatus();
     } catch (e) {
       console.error('Start failed:', e);
@@ -107,7 +107,10 @@ export function Dashboard() {
   const handleStop = async () => {
     setActionLoading(true);
     try {
+      await api.stopService();
       await fetchServiceStatus();
+    } catch (e) {
+      console.error('Stop failed:', e);
     } finally {
       setActionLoading(false);
     }
@@ -116,24 +119,33 @@ export function Dashboard() {
   const handleRestart = async () => {
     setActionLoading(true);
     try {
+      await api.restartService();
       await fetchServiceStatus();
       await fetchLogs();
+    } catch (e) {
+      console.error('Restart failed:', e);
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleKillAll = async () => {
+    if (!confirm('Are you sure you want to kill all services? This will terminate all running processes.')) {
+      return;
+    }
     setActionLoading(true);
     try {
+      await api.stopService();
       await fetchServiceStatus();
+    } catch (e) {
+      console.error('Kill all failed:', e);
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleDiagnostics = async () => {
-    alert('Diagnostics feature coming soon!');
+  const handleDiagnostics = () => {
+    setCurrentPage('testing');
   };
 
   const handleAddProvider = async () => {

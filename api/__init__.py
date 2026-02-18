@@ -647,17 +647,60 @@ async def get_skill_categories():
 @router.post("/skills/install")
 async def install_skill(request: Request):
     data = await request.json()
-    name = data.get("name", "")
+    name = data.get("name", "").strip()
     if not name:
         return JSONResponse(
             {"success": False, "message": "Skill name required"}, status_code=400
         )
-    return {"success": True, "message": f"Skill '{name}' installed (simulated)"}
+
+    # Check if skill already exists
+    if name in skills_registry.skills:
+        return {"success": False, "message": f"Skill '{name}' already exists"}
+
+    # Create a new skill
+    try:
+        skill = Skill(
+            id=name.lower().replace(" ", "_"),
+            name=name,
+            description=data.get("description", f"Custom skill: {name}"),
+            icon=data.get("icon", "🔧"),
+            category=data.get("category", "custom"),
+            builtin=False,
+            version="1.0.0",
+            author="User",
+            enabled=True,
+        )
+
+        if skills_registry.add_skill(skill):
+            return {
+                "success": True,
+                "message": f"Skill '{name}' installed successfully",
+                "skill": skill.to_dict(),
+            }
+        else:
+            return {"success": False, "message": f"Failed to install skill '{name}'"}
+    except Exception as e:
+        return {"success": False, "message": f"Error installing skill: {str(e)}"}
 
 
 @router.delete("/skills/{skill_id}")
 async def uninstall_skill(skill_id: str):
-    return {"ok": True, "message": f"Skill '{skill_id}' uninstalled"}
+    try:
+        if skills_registry.remove_skill(skill_id):
+            return {
+                "ok": True,
+                "message": f"Skill '{skill_id}' uninstalled successfully",
+            }
+        else:
+            return JSONResponse(
+                {"ok": False, "error": f"Skill '{skill_id}' not found or is builtin"},
+                status_code=404,
+            )
+    except Exception as e:
+        return JSONResponse(
+            {"ok": False, "error": f"Error uninstalling skill: {str(e)}"},
+            status_code=500,
+        )
 
 
 # === Agent Router Endpoints ===
