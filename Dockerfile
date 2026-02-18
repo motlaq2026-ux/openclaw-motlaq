@@ -43,9 +43,9 @@ RUN mkdir -p /app/static/assets /app/data /app/data/backups && \
     echo '{"threads":{}}' > /app/data/threads.json && \
     echo '{}' > /app/data/mcp.json && \
     echo '{}' > /app/data/skills.json && \
-    echo '[]' > /app/data/agents.json && \
-    echo '[]' > /app/data/scheduler.json && \
-    echo '[]' > /app/data/logs.json && \
+    echo '{"agents": {}}' > /app/data/agents.json && \
+    echo '{"tasks": {}}' > /app/data/scheduler.json && \
+    echo '{"entries": []}' > /app/data/logs.json && \
     echo '{}' > /app/data/channels.json && \
     echo '[]' > /app/data/telegram_accounts.json && \
     chmod -R 755 /app && \
