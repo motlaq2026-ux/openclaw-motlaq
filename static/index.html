@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦞 OpenClaw Fortress - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --claw-500: #f94d3a;
+            --claw-600: #e63024;
+            --dark-900: #0a0a0b;
+            --dark-800: #111113;
+            --dark-700: #1a1a1d;
+            --dark-600: #242428;
+        }
+        body { font-family: 'Cairo', sans-serif; background: var(--dark-900); color: #e6edf3; }
+        .gradient-text { background: linear-gradient(135deg, #f94d3a, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .card { background: var(--dark-800); border: 1px solid var(--dark-600); border-radius: 12px; }
+        .sidebar-item { transition: all 0.2s; }
+        .sidebar-item:hover, .sidebar-item.active { background: var(--dark-700); border-right: 3px solid var(--claw-500); }
+        .btn-primary { background: linear-gradient(135deg, #f94d3a, #e63024); }
+        .btn-primary:hover { opacity: 0.9; }
+        .toggle-on { background: var(--claw-500); }
+        .toggle-off { background: var(--dark-600); }
+        .log-entry { font-family: monospace; font-size: 12px; padding: 4px 8px; border-bottom: 1px solid var(--dark-600); }
+        .log-DEBUG { color: #6b7280; }
+        .log-INFO { color: #22c55e; }
+        .log-WARNING { color: #f59e0b; }
+        .log-ERROR { color: #ef4444; }
+        .log-CRITICAL { color: #dc2626; background: rgba(239, 68, 68, 0.1); }
+        .scroll-y { overflow-y: auto; max-height: 400px; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-[#111113] border-l border-[#242428] flex flex-col flex-shrink-0">
+            <div class="p-4 border-b border-[#242428]">
+                <h1 class="text-2xl font-bold gradient-text">🦞 OpenClaw</h1>
+                <p class="text-xs text-gray-500">Fortress v2.0</p>
+            </div>
+            <nav class="flex-1 p-2 space-y-1 overflow-y-auto">
+                <a href="#" class="sidebar-item active flex items-center gap-3 px-4 py-3 rounded-lg" data-page="dashboard"><span>📊</span><span>لوحة التحكم</span></a>
+                <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-page="models"><span>🤖</span><span>النماذج</span></a>
+                <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-page="skills"><span>⚡</span><span>المهارات</span></a>
+                <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-page="mcp"><span>🔌</span><span>MCP</span></a>
+                <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-page="agents"><span>🧠</span><span>الوكلاء</span></a>
+                <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-page="scheduler"><span>⏰</span><span>الجدولة</span></a>
+                <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-page="prompt"><span>📝</span><span>البرومبت</span></a>
+                <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-page="threads"><span>💬</span><span>المحادثات</span></a>
+                <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-page="logs"><span>📋</span><span>السجلات</span></a>
+                <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-page="usage"><span>📈</span><span>الاستخدام</span></a>
+                <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg bg-gradient-to-l from-red-900/30 to-purple-900/30" data-page="nuclear"><span>☢️</span><span>النظام النووي</span></a>
+                <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg" data-page="settings"><span>⚙️</span><span>الإعدادات</span></a>
+            </nav>
+            <div class="p-4 border-t border-[#242428]">
+                <a href="/" class="block text-center py-2 bg-[#1a1a1d] rounded-lg hover:bg-[#242428]">💬 فتح الشات</a>
+            </div>
+        </aside>
+        <!-- Main Content -->
+        <main class="flex-1 overflow-auto p-6" id="main-content"></main>
+    </div>
+    <script>
+    const API = '/api';
+    let state = { config: null, models: [], skills: [], threads: [], usage: {}, mcp: [], agents: [], tasks: [], logs: [], activePage: 'dashboard' };
+    let ws = null;
+    
+    async function api(endpoint, options = {}) {
+        const res = await fetch(API + endpoint, { headers: { 'Content-Type': 'application/json' }, ...options });
+        return res.json();
+    }
+    
+    async function loadState() {
+        const [config, models, skills, usage, threads, mcp, agents, tasks, logs] = await Promise.all([
+            api('/config'), api('/models'), api('/skills/registry'), api('/usage'), api('/threads'),
+            api('/mcp'), api('/agents'), api('/scheduler/tasks'), api('/logs?limit=50')
+        ]);
+        state = { ...state, config, models: models.models, skills: skills.skills, usage, threads: threads.threads, mcp: mcp.servers, agents: agents.agents, tasks: tasks.tasks, logs: logs.logs };
+        renderPage(state.activePage);
+    }
+    
+    function $(id) { return document.getElementById(id); }
+    
+    document.querySelectorAll('.sidebar-item').forEach(el => {
+        el.onclick = (e) => { e.preventDefault(); document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active')); el.classList.add('active'); state.activePage = el.dataset.page; renderPage(el.dataset.page); };
+    });
+    
+    function renderPage(page) {
+        const content = $('main-content');
+        const pages = {
+            dashboard: renderDashboard, models: renderModels, skills: renderSkills, mcp: renderMCP,
+            agents: renderAgents, scheduler: renderScheduler, prompt: renderPrompt, threads: renderThreads,
+            logs: renderLogs, usage: renderUsage, settings: renderSettings, nuclear: renderNuclear
+        };
+        content.innerHTML = pages[page] ? pages[page]() : '<p>صفحة غير موجودة</p>';
+    }
+    
+    function renderDashboard() {
+        const activeModel = state.models?.find(m => m.id === state.config?.active_model_id);
+        const enabledSkills = state.skills?.filter(s => s.enabled) || [];
+        return `<h2 class="text-2xl font-bold mb-6 gradient-text">📊 لوحة التحكم</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="card p-4"><div class="text-3xl mb-2">🤖</div><div class="text-sm text-gray-400">النموذج النشط</div><div class="font-bold">${activeModel?.name || 'غير محدد'}</div></div>
+            <div class="card p-4"><div class="text-3xl mb-2">📦</div><div class="text-sm text-gray-400">النماذج</div><div class="font-bold">${state.models?.length || 0}</div></div>
+            <div class="card p-4"><div class="text-3xl mb-2">⚡</div><div class="text-sm text-gray-400">المهارات</div><div class="font-bold">${enabledSkills.length}</div></div>
+            <div class="card p-4"><div class="text-3xl mb-2">📈</div><div class="text-sm text-gray-400">الطلبات</div><div class="font-bold">${state.usage?.total_requests || 0}</div></div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="card p-4"><h3 class="font-bold mb-2">🔌 MCP Servers</h3><div class="text-2xl">${state.mcp?.length || 0}</div></div>
+            <div class="card p-4"><h3 class="font-bold mb-2">🧠 Agents</h3><div class="text-2xl">${state.agents?.length || 0}</div></div>
+        </div>
+        <div class="card p-6 mb-6"><h3 class="font-bold mb-4">🎯 النموذج النشط</h3><div class="flex items-center justify-between"><div><span class="text-2xl ml-2">${activeModel?.provider === 'groq' ? '⚡' : activeModel?.provider === 'google' ? '🔵' : '🟢'}</span><span class="font-bold">${activeModel?.name || 'غير محدد'}</span></div><button onclick="testAI()" class="px-4 py-2 btn-primary rounded-lg">🧪 اختبار</button></div></div>
+        <div class="card p-6"><h3 class="font-bold mb-4">⚡ المهارات المفعلة</h3><div class="flex flex-wrap gap-2">${enabledSkills.map(s => `<span class="px-3 py-1 bg-[#1a1a1d] rounded-full text-sm">${s.icon} ${s.name}</span>`).join('') || '<span class="text-gray-500">لا توجد مهارات مفعلة</span>'}</div></div>`;
+    }
+    
+    function renderModels() {
+        return `<div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold gradient-text">🤖 إدارة النماذج</h2></div>
+        <div class="grid gap-4">${state.models?.map(m => `<div class="card p-4 ${m.id === state.config?.active_model_id ? 'border-[#f94d3a]' : ''}"><div class="flex items-center justify-between"><div class="flex items-center gap-3"><span class="text-2xl">${m.provider === 'groq' ? '⚡' : m.provider === 'google' ? '🔵' : m.provider === 'cerebras' ? '🚀' : '🟢'}</span><div><div class="font-bold">${m.name}</div><div class="text-sm text-gray-500">${m.model_id}</div></div></div><div class="flex gap-2">${m.id !== state.config?.active_model_id ? `<button onclick="activateModel('${m.id}')" class="px-3 py-1 bg-[#1a1a1d] rounded hover:bg-[#242428]">تفعيل</button>` : '<span class="px-3 py-1 bg-[#f94d3a] rounded text-sm">نشط</span>'}</div></div></div>`).join('') || ''}</div>`;
+    }
+    
+    function renderSkills() {
+        return `<h2 class="text-2xl font-bold mb-6 gradient-text">⚡ إدارة المهارات</h2>
+        <div class="grid gap-4">${state.skills?.map(s => `<div class="card p-4 flex items-center justify-between"><div class="flex items-center gap-3"><span class="text-2xl">${s.icon}</span><div><div class="font-bold">${s.name}</div><div class="text-sm text-gray-500">${s.description}</div></div></div><button onclick="toggleSkill('${s.id}', ${!s.enabled})" class="w-12 h-6 rounded-full ${s.enabled ? 'toggle-on' : 'toggle-off'} relative"><span class="absolute w-5 h-5 bg-white rounded-full top-0.5 transition-all ${s.enabled ? 'right-0.5' : 'left-0.5'}"></span></button></div>`).join('') || ''}</div>`;
+    }
+    
+    function renderMCP() {
+        return `<h2 class="text-2xl font-bold mb-6 gradient-text">🔌 MCP Servers</h2>
+        <div class="grid gap-4">${state.mcp?.map(s => `<div class="card p-4"><div class="flex items-center justify-between"><div><div class="font-bold">${s.name}</div><div class="text-sm text-gray-500">${s.transport} - ${s.status}</div></div><div class="flex gap-2"><button onclick="testMCPServer('${s.name}')" class="px-3 py-1 bg-[#1a1a1d] rounded hover:bg-[#242428]">اختبار</button></div></div></div>`).join('') || '<div class="text-gray-500">لا توجد خوادم MCP</div>'}</div>`;
+    }
+    
+    function renderAgents() {
+        return `<h2 class="text-2xl font-bold mb-6 gradient-text">🧠 إدارة الوكلاء</h2>
+        <div class="grid gap-4">${state.agents?.map(a => `<div class="card p-4 ${a.is_default ? 'border-[#f94d3a]' : ''}"><div class="flex items-center justify-between"><div><div class="font-bold">${a.name}</div><div class="text-sm text-gray-500">${a.description || a.id}</div></div>${a.is_default ? '<span class="px-2 py-1 bg-[#f94d3a] rounded text-xs">افتراضي</span>' : ''}</div></div>`).join('') || ''}</div>`;
+    }
+    
+    function renderScheduler() {
+        return `<h2 class="text-2xl font-bold mb-6 gradient-text">⏰ المهام المجدولة</h2>
+        <div class="grid gap-4">${state.tasks?.map(t => `<div class="card p-4"><div class="flex items-center justify-between"><div><div class="font-bold">${t.name}</div><div class="text-sm text-gray-500">${t.schedule}</div></div><span class="px-2 py-1 ${t.enabled ? 'bg-green-900/30 text-green-400' : 'bg-gray-800 text-gray-400'} rounded text-xs">${t.enabled ? 'مفعّل' : 'معطّل'}</span></div></div>`).join('') || '<div class="text-gray-500">لا توجد مهام مجدولة</div>'}</div>`;
+    }
+    
+    function renderPrompt() {
+        return `<h2 class="text-2xl font-bold mb-6 gradient-text">📝 تحرير البرومبت</h2>
+        <div class="card p-6"><textarea id="prompt-editor" class="w-full h-64 bg-[#0a0a0b] border border-[#242428] rounded-lg p-4 text-sm" dir="rtl">${state.config?.system_prompt || ''}</textarea><div class="flex gap-2 mt-4"><button onclick="savePrompt()" class="px-4 py-2 btn-primary rounded-lg">💾 حفظ</button></div></div>`;
+    }
+    
+    function renderThreads() {
+        return `<h2 class="text-2xl font-bold mb-6 gradient-text">💬 المحادثات</h2>
+        <div class="card divide-y divide-[#242428]">${state.threads?.map(t => `<div class="p-4 flex justify-between items-center hover:bg-[#1a1a1d]"><div><div class="font-bold">${t.title}</div><div class="text-sm text-gray-500">${new Date(t.updated_at).toLocaleDateString('ar')}</div></div><button onclick="deleteThread('${t.id}')" class="text-red-400 hover:text-red-300">🗑️</button></div>`).join('') || '<div class="p-4 text-gray-500 text-center">لا توجد محادثات</div>'}</div>`;
+    }
+    
+    function renderLogs() {
+        return `<h2 class="text-2xl font-bold mb-6 gradient-text">📋 سجلات النظام</h2>
+        <div class="card p-4 scroll-y" id="logs-container">${state.logs?.map(l => `<div class="log-entry log-${l.level}"><span class="text-gray-500">[${new Date(l.timestamp).toLocaleTimeString()}]</span> <span class="font-bold">${l.level}</span> <span class="text-gray-400">${l.source}:</span> ${l.message}</div>`).join('') || '<div class="text-gray-500">لا توجد سجلات</div>'}</div>
+        <div class="mt-4"><button onclick="clearLogs()" class="px-4 py-2 bg-red-900/30 text-red-400 rounded-lg">مسح السجلات</button></div>`;
+    }
+    
+    function renderUsage() {
+        return `<h2 class="text-2xl font-bold mb-6 gradient-text">📈 إحصائيات الاستخدام</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="card p-6"><div class="text-4xl font-bold gradient-text">${state.usage?.total_requests || 0}</div><div class="text-gray-400">إجمالي الطلبات</div></div>
+            <div class="card p-6"><div class="text-4xl font-bold gradient-text">${state.usage?.total_tokens?.toLocaleString() || 0}</div><div class="text-gray-400">إجمالي التوكنز</div></div>
+        </div>
+        <div class="card p-6"><h3 class="font-bold mb-4">الاستخدام حسب النموذج</h3><div class="space-y-2">${Object.entries(state.usage?.models || {}).map(([k,v]) => `<div class="flex justify-between"><span>${k}</span><span>${v.requests} طلب | ${v.tokens?.toLocaleString()} توكن</span></div>`).join('') || '<div class="text-gray-500">لا توجد بيانات</div>'}</div></div>`;
+    }
+    
+    function renderSettings() {
+        return `<h2 class="text-2xl font-bold mb-6 gradient-text">⚙️ الإعدادات</h2>
+        <div class="space-y-4">
+            <div class="card p-6"><h3 class="font-bold mb-4">💾 النسخ الاحتياطي</h3><div class="flex gap-2"><button onclick="exportBackup()" class="px-4 py-2 btn-primary rounded-lg">📤 تصدير</button><label class="px-4 py-2 bg-[#1a1a1d] rounded-lg cursor-pointer hover:bg-[#242428]">📥 استيراد<input type="file" class="hidden" accept=".json" onchange="importBackup(this)"></label></div></div>
+            <div class="card p-6"><h3 class="font-bold mb-4">ℹ️ معلومات النظام</h3><div class="space-y-2 text-sm"><div class="flex justify-between"><span class="text-gray-400">الإصدار</span><span>${state.config?.version || '2.0.0'}</span></div><div class="flex justify-between"><span class="text-gray-400">النموذج النشط</span><span>${state.config?.active_model_id || '-'}</span></div><div class="flex justify-between"><span class="text-gray-400">تيليجرام</span><span>${state.config?.telegram_enabled ? '✅ مفعّل' : '❌ معطّل'}</span></div></div></div>
+        </div>`;
+    }
+    
+    async function activateModel(id) { await api(`/models/${id}/activate`, { method: 'POST' }); await loadState(); }
+    async function toggleSkill(id, enabled) { await api(`/skills/registry/${id}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' }); await loadState(); }
+    async function deleteThread(id) { await api(`/threads/${id}`, { method: 'DELETE' }); await loadState(); }
+    async function savePrompt() { await api('/prompt', { method: 'POST', body: JSON.stringify({ prompt: $('prompt-editor').value }) }); alert('✅ تم الحفظ'); }
+    async function testAI() { const r = await api('/test-ai', { method: 'POST', body: JSON.stringify({ message: 'مرحبا' }) }); alert(r.ok ? r.response : r.error); }
+    async function testMCPServer(name) { const r = await api(`/mcp/${name}/test`, { method: 'POST' }); alert(r.ok ? '✅ يعمل' : r.error); }
+    async function exportBackup() { const data = await api('/backup'); const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'openclaw-backup.json'; a.click(); }
+    async function importBackup(input) { const file = input.files[0]; if(file) { const text = await file.text(); await api('/restore', { method: 'POST', body: text }); await loadState(); alert('✅ تم الاستيراد'); } }
+    async function clearLogs() { await api('/logs', { method: 'DELETE' }); await loadState(); }
+    
+    function renderNuclear() {
+        return `<h2 class="text-2xl font-bold mb-6 gradient-text">☢️ النظام النووي - Self-Healing & Auto-Update</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="card p-4 border-green-500"><div class="text-3xl mb-2">🔄</div><div class="text-sm text-gray-400">Auto-Update</div><div class="font-bold text-green-400">مفعّل</div></div>
+            <div class="card p-4 border-blue-500"><div class="text-3xl mb-2">💊</div><div class="text-sm text-gray-400">Self-Healing</div><div class="font-bold text-blue-400">مفعّل</div></div>
+            <div class="card p-4 border-purple-500"><div class="text-3xl mb-2">📊</div><div class="text-sm text-gray-400">Health Monitor</div><div class="font-bold text-purple-400">مفعّل</div></div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="card p-6"><h3 class="font-bold mb-4">🔄 Auto-Update</h3><div class="space-y-2"><div class="flex justify-between"><span>الإصدار الحالي</span><span class="font-bold">v2.0.0-nuclear</span></div><div class="flex justify-between"><span>آخر فحص</span><span id="last-check">-</span></div><div class="flex justify-between"><span>تحديث متاح</span><span id="update-avail">لا</span></div></div><button onclick="checkUpdates()" class="mt-4 px-4 py-2 btn-primary rounded-lg">🔍 فحص التحديثات</button></div>
+            <div class="card p-6"><h3 class="font-bold mb-4">💊 Self-Healing</h3><div class="space-y-2"><div class="flex justify-between"><span>الحالة</span><span id="health-status" class="text-green-400 font-bold">Healthy</span></div><div class="flex justify-between"><span>الأخطاء</span><span id="error-count">0</span></div><div class="flex justify-between"><span>التعافيات</span><span id="recovery-count">0</span></div></div><button onclick="runHealthCheck()" class="mt-4 px-4 py-2 bg-blue-600 rounded-lg">🏃 فحص الصحة</button></div>
+        </div>
+        <div class="card p-6 mb-6"><h3 class="font-bold mb-4">📊 مراقبة النظام</h3><div class="grid grid-cols-2 md:grid-cols-4 gap-4"><div class="text-center"><div class="text-2xl font-bold text-cyan-400" id="cpu-percent">-</div><div class="text-xs text-gray-500">CPU</div></div><div class="text-center"><div class="text-2xl font-bold text-green-400" id="mem-percent">-</div><div class="text-xs text-gray-500">الذاكرة</div></div><div class="text-center"><div class="text-2xl font-bold text-yellow-400" id="disk-percent">-</div><div class="text-xs text-gray-500">القرص</div></div><div class="text-center"><div class="text-2xl font-bold text-purple-400" id="uptime">-</div><div class="text-xs text-gray-500">Uptime</div></div></div></div>
+        <div class="card p-6"><h3 class="font-bold mb-4">✨ الميزات النووية</h3><div class="grid grid-cols-2 md:grid-cols-3 gap-3"><div class="flex items-center gap-2"><span class="text-green-400">✅</span><span>تحديث تلقائي</span></div><div class="flex items-center gap-2"><span class="text-green-400">✅</span><span>تعافي تلقائي من الأخطاء</span></div><div class="flex items-center gap-2"><span class="text-green-400">✅</span><span>مراقبة 24/7</span></div><div class="flex items-center gap-2"><span class="text-green-400">✅</span><span>نسخ احتياطي تلقائي</span></div><div class="flex items-center gap-2"><span class="text-green-400">✅</span><span>إشعارات التنبيه</span></div><div class="flex items-center gap-2"><span class="text-green-400">✅</span><span>سجلات حية</span></div></div></div>`;
+    }
+    
+    async function checkUpdates() { const r = await api('/system/updates/check'); alert(r.ok ? (r.update_available ? '🔄 تحديث متاح: v' + r.latest_version : '✅ أنت على أحدث إصدار') : r.error); }
+    async function runHealthCheck() { const r = await api('/system/health/check'); alert('✅ فحص الصحة: ' + r.status); }
+    
+    async function loadNuclearData() {
+        try {
+            const [nuclear, metrics] = await Promise.all([api('/system/nuclear'), api('/system/metrics')]);
+            if (nuclear.systems) {
+                $('uptime').textContent = Math.floor(nuclear.uptime) + 's';
+            }
+            if (metrics.system) {
+                $('cpu-percent').textContent = metrics.system.cpu?.percent?.toFixed(1) + '%';
+                $('mem-percent').textContent = metrics.system.memory?.percent?.toFixed(1) + '%';
+                $('disk-percent').textContent = metrics.system.disk?.percent?.toFixed(1) + '%';
+            }
+        } catch(e) {}
+    }
+    setInterval(loadNuclearData, 5000);
+    loadNuclearData();
+    
+    loadState();
+    </script>
+</body>
+</html>

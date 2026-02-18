@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.ruff_cache
+.mypy_cache
+.pytest_cache
+
+# Virtual env
+venv
+env
+.venv
+ENV
+
+# IDE
+.idea
+.vscode
+*.swp
+
+# Data (will be created at runtime)
+data
+logs
+backups
+
+# Build artifacts
+node_modules
+dist
+build
+
+# Docs
+*.md
+!README.md
+
+# Test
+.coverage
+htmlcov
+
+# OS
+.DS_Store
+Thumbs.db
