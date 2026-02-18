@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 
 # Import route modules
-from .routes import config, models, channels, agents, mcp, system, skills, logs
+from . import config, models, channels, agents, mcp, system, skills, logs, chat
 
 # Create main router
 router = APIRouter(prefix="/api")
@@ -17,6 +17,7 @@ router.include_router(mcp.router, prefix="/mcp", tags=["MCP Servers"])
 router.include_router(system.router, prefix="/system", tags=["System"])
 router.include_router(skills.router, prefix="/skills", tags=["Skills"])
 router.include_router(logs.router, prefix="/logs", tags=["Logs"])
+router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 
 
 @router.get("/health")
