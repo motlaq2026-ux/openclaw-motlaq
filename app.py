@@ -308,6 +308,26 @@ async def telegram_webhook(token: str, request: Request):
         return Response(status_code=200)
 
 
+@app.websocket("/ws/logs")
+async def websocket_logs(websocket: WebSocket):
+    await websocket.accept()
+    log_stream.info("WebSocket client connected", source="ws")
+    try:
+        while True:
+            data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            if data == "ping":
+                await websocket.send_text("pong")
+            elif data == "get_logs":
+                logs = log_stream.get_entries(limit=50)
+                await websocket.send_json({"type": "logs", "data": logs})
+    except WebSocketDisconnect:
+        log_stream.info("WebSocket client disconnected", source="ws")
+    except asyncio.TimeoutError:
+        await websocket.send_json({"type": "ping"})
+    except Exception as e:
+        log_stream.error(f"WebSocket error: {e}", source="ws")
+
+
 def web_chat(message, history):
     import asyncio
 

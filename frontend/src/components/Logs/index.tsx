@@ -1,21 +1,21 @@
 import { useAppStore } from '../../stores/appStore';
 import { useEffect } from 'react';
-import { Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { Loader2, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react';
 import { api } from '../../lib/api';
+import { useWebSocket } from '../../lib/useWebSocket';
 
 export function Logs() {
-  const { logs, loadLogs, loading } = useAppStore();
+  const { loadLogs, loading } = useAppStore();
+  const { connected, logs, refreshLogs } = useWebSocket();
 
   useEffect(() => {
     loadLogs();
-    const interval = setInterval(loadLogs, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   const handleClear = async () => {
     if (confirm('Clear all logs?')) {
       await api.clearLogs();
-      await loadLogs();
+      refreshLogs();
     }
   };
 
@@ -27,7 +27,7 @@ export function Logs() {
     CRITICAL: 'text-red-500 bg-red-500/10',
   };
 
-  if (loading) {
+  if (loading && logs.length === 0) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-claw-500" /></div>;
   }
 
@@ -38,8 +38,21 @@ export function Logs() {
           <h2 className="text-2xl font-bold text-white mb-2">Logs</h2>
           <p className="text-gray-400">System logs and events</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={loadLogs} className="btn-secondary flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm">
+            {connected ? (
+              <>
+                <Wifi className="text-green-500" size={16} />
+                <span className="text-green-400">Live</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="text-gray-500" size={16} />
+                <span className="text-gray-400">Disconnected</span>
+              </>
+            )}
+          </div>
+          <button onClick={refreshLogs} className="btn-secondary flex items-center gap-2">
             <RefreshCw size={16} /> Refresh
           </button>
           <button onClick={handleClear} className="btn-secondary text-red-400 flex items-center gap-2">
