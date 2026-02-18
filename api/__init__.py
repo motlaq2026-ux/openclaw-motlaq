@@ -1512,3 +1512,159 @@ async def fetch_telegram_users(bot_token: str = Query(...)):
                 return {"users": list(user_map.values())}
     except Exception as e:
         return {"users": [], "error": str(e)}
+
+
+# === Environment Variables Endpoints ===
+
+
+ENV_FILE_PATH = Path("/app/data/.env")
+
+
+def load_env_file():
+    env_vars = {}
+    if ENV_FILE_PATH.exists():
+        for line in ENV_FILE_PATH.read_text().splitlines():
+            if "=" in line and not line.startswith("#"):
+                key, value = line.split("=", 1)
+                env_vars[key.strip()] = value.strip()
+    return env_vars
+
+
+def save_env_file(env_vars: Dict[str, str]):
+    lines = []
+    for key, value in env_vars.items():
+        lines.append(f"{key}={value}")
+    ENV_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ENV_FILE_PATH.write_text("\n".join(lines) + "\n")
+
+
+@router.get("/env")
+async def list_env_vars():
+    env_vars = load_env_file()
+    masked = {}
+    for key, value in env_vars.items():
+        if "KEY" in key.upper() or "TOKEN" in key.upper() or "SECRET" in key.upper():
+            if len(value) > 8:
+                masked[key] = f"{value[:4]}...{value[-4:]}"
+            else:
+                masked[key] = "****"
+        else:
+            masked[key] = value
+    system_env = {
+        "GROQ_API_KEY": bool(os.getenv("GROQ_API_KEY")),
+        "GOOGLE_API_KEY": bool(os.getenv("GOOGLE_API_KEY")),
+        "CEREBRAS_API_KEY": bool(os.getenv("CEREBRAS_API_KEY")),
+        "OPENAI_API_KEY": bool(os.getenv("OPENAI_API_KEY")),
+        "ANTHROPIC_API_KEY": bool(os.getenv("ANTHROPIC_API_KEY")),
+        "TELEGRAM_BOT_TOKEN": bool(os.getenv("TELEGRAM_BOT_TOKEN")),
+    }
+    return {"env_vars": masked, "system_env": system_env}
+
+
+@router.post("/env")
+async def set_env_var(request: Request):
+    data = await request.json()
+    key = data.get("key")
+    value = data.get("value")
+    if not key:
+        return JSONResponse({"ok": False, "error": "Key required"}, status_code=400)
+    env_vars = load_env_file()
+    env_vars[key] = value
+    save_env_file(env_vars)
+    os.environ[key] = value
+    return {"ok": True, "key": key}
+
+
+@router.delete("/env/{key}")
+async def delete_env_var(key: str):
+    env_vars = load_env_file()
+    if key in env_vars:
+        del env_vars[key]
+        save_env_file(env_vars)
+    return {"ok": True}
+
+
+# === System Info Endpoints ===
+
+
+@router.get("/system/info")
+async def get_system_info():
+    import platform
+    import psutil
+
+    return {
+        "python_version": platform.python_version(),
+        "platform": platform.system(),
+        "platform_release": platform.release(),
+        "cpu_count": os.cpu_count(),
+        "memory_total": psutil.virtual_memory().total,
+        "memory_available": psutil.virtual_memory().available,
+        "disk_total": psutil.disk_usage("/").total,
+        "disk_free": psutil.disk_usage("/").free,
+    }
+
+
+# === Skills Management Endpoints ===
+
+
+@router.get("/skills/available")
+async def list_available_skills():
+    available_skills = [
+        {
+            "id": "web_search",
+            "name": "Web Search",
+            "description": "Search the web using DuckDuckGo",
+            "icon": "🔍",
+            "category": "search",
+            "enabled": True,
+        },
+        {
+            "id": "python_repl",
+            "name": "Python REPL",
+            "description": "Execute Python code safely",
+            "icon": "🐍",
+            "category": "code",
+            "enabled": True,
+        },
+        {
+            "id": "vision",
+            "name": "Vision",
+            "description": "Process and analyze images",
+            "icon": "👁️",
+            "category": "multimodal",
+            "enabled": False,
+        },
+        {
+            "id": "file_ops",
+            "name": "File Operations",
+            "description": "Read and write files",
+            "icon": "📁",
+            "category": "system",
+            "enabled": False,
+        },
+        {
+            "id": "weather",
+            "name": "Weather",
+            "description": "Get weather information",
+            "icon": "🌤️",
+            "category": "info",
+            "enabled": False,
+        },
+    ]
+    config = load_config()
+    skills_config = config.get("skills", {})
+    for skill in available_skills:
+        if skill["id"] in skills_config:
+            skill["enabled"] = skills_config[skill["id"]].get("enabled", False)
+    return {"skills": available_skills}
+
+
+# === Provider Models Endpoint ===
+
+
+@router.get("/providers/{provider_name}/models")
+async def get_provider_models(provider_name: str):
+    config = load_config()
+    models = config.get("models", [])
+    provider_models = [m for m in models if m.get("provider") == provider_name]
+    return {"provider": provider_name, "models": provider_models}

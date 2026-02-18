@@ -1,8 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '../../stores/appStore';
-import { api, OfficialProvider } from '../../lib/api';
-import { Activity, Bot, Zap, Clock, CheckCircle, XCircle, Loader2, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { api, OfficialProvider, NuclearStatus } from '../../lib/api';
+import { Activity, Bot, Zap, Clock, CheckCircle, XCircle, Loader2, Plus, Shield, RefreshCw, Radio, Cpu } from 'lucide-react';
 
 export function Dashboard() {
   const { aiConfig, officialProviders, loadAIConfig, loading } = useAppStore();
@@ -10,10 +9,23 @@ export function Dashboard() {
   const [selectedProvider, setSelectedProvider] = useState<OfficialProvider | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
+  const [nuclearStatus, setNuclearStatus] = useState<NuclearStatus | null>(null);
 
   useEffect(() => {
     loadAIConfig();
+    loadNuclearStatus();
+    const interval = setInterval(loadNuclearStatus, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  const loadNuclearStatus = async () => {
+    try {
+      const status = await api.getNuclearStatus();
+      setNuclearStatus(status);
+    } catch (e) {
+      console.error('Failed to load nuclear status:', e);
+    }
+  };
 
   const handleAddProvider = async () => {
     if (!selectedProvider || !apiKey) return;
@@ -51,6 +63,9 @@ export function Dashboard() {
   }
 
   const hasConfig = aiConfig && aiConfig.configured_providers.length > 0;
+  const uptime = nuclearStatus ? Math.floor(nuclearStatus.uptime) : 0;
+  const uptimeHours = Math.floor(uptime / 3600);
+  const uptimeMins = Math.floor((uptime % 3600) / 60);
 
   return (
     <div className="h-full overflow-y-auto scroll-container p-6">
@@ -59,13 +74,15 @@ export function Dashboard() {
           <h2 className="text-2xl font-bold text-white mb-2">Dashboard</h2>
           <p className="text-gray-400">Welcome to OpenClaw Fortress</p>
         </div>
-        <button
-          onClick={() => setShowAddDialog(true)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus size={18} />
-          Add Provider
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => { loadAIConfig(); loadNuclearStatus(); }} className="btn-secondary flex items-center gap-2">
+            <RefreshCw size={16} /> Refresh
+          </button>
+          <button onClick={() => setShowAddDialog(true)} className="btn-primary flex items-center gap-2">
+            <Plus size={18} />
+            Add Provider
+          </button>
+        </div>
       </div>
 
       {!hasConfig && (
@@ -74,10 +91,7 @@ export function Dashboard() {
           <p className="text-gray-400 mb-4">
             No AI providers configured. Add a provider to get started.
           </p>
-          <button
-            onClick={() => setShowAddDialog(true)}
-            className="btn-primary"
-          >
+          <button onClick={() => setShowAddDialog(true)} className="btn-primary">
             Add Your First Provider
           </button>
         </div>
@@ -125,25 +139,56 @@ export function Dashboard() {
             <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
               <Clock className="text-blue-500" size={20} />
             </div>
-            <span className="text-gray-400">Status</span>
+            <span className="text-gray-400">Uptime</span>
           </div>
-          <div className="flex items-center gap-2">
-            <CheckCircle className="text-green-500" size={16} />
-            <span className="text-green-400 text-sm">Running</span>
-          </div>
+          <p className="text-xl font-bold text-white">{uptimeHours}h {uptimeMins}m</p>
         </div>
       </div>
+
+      {nuclearStatus && (
+        <div className="bg-dark-800 border border-dark-600 rounded-2xl p-6 mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Shield className="text-claw-500" size={20} />
+            <h3 className="text-lg font-semibold text-white">Nuclear Systems</h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { name: 'Auto-Update', key: 'auto_updater', icon: RefreshCw },
+              { name: 'Self-Healing', key: 'self_healing', icon: Shield },
+              { name: 'Health Monitor', key: 'health_monitor', icon: Activity },
+              { name: 'Scheduler', key: 'scheduler', icon: Clock },
+            ].map((sys) => {
+              const Icon = sys.icon;
+              const status = nuclearStatus.systems?.[sys.key];
+              const isRunning = typeof status === 'object' ? status?.running !== false : !!status;
+              return (
+                <div key={sys.key} className="bg-dark-700 rounded-xl p-3 flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isRunning ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+                    <Icon size={16} className={isRunning ? 'text-green-400' : 'text-red-400'} />
+                  </div>
+                  <div>
+                    <p className="text-sm text-white">{sys.name}</p>
+                    <p className={`text-xs ${isRunning ? 'text-green-400' : 'text-red-400'}`}>
+                      {isRunning ? 'Running' : 'Stopped'}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {hasConfig && (
         <div className="bg-dark-800 border border-dark-600 rounded-2xl p-6">
           <h3 className="text-lg font-semibold text-white mb-4">Configured Providers</h3>
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {aiConfig?.configured_providers.map((provider) => (
               <div key={provider.name} className="bg-dark-700 rounded-xl p-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h4 className="font-medium text-white">{provider.name}</h4>
-                    <p className="text-sm text-gray-400">{provider.models.length} models</p>
+                    <h4 className="font-medium text-white capitalize">{provider.name}</h4>
+                    <p className="text-xs text-gray-400 truncate">{provider.base_url}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {provider.has_api_key ? (
@@ -151,10 +196,20 @@ export function Dashboard() {
                     ) : (
                       <XCircle className="text-red-500" size={16} />
                     )}
-                    <span className="text-xs text-gray-400">
-                      {provider.has_api_key ? 'Key set' : 'No key'}
-                    </span>
                   </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {provider.models.slice(0, 3).map((model) => (
+                    <div key={model.full_id} className="bg-dark-600 rounded-lg px-2 py-1 text-xs">
+                      <span className="text-gray-300">{model.name}</span>
+                      {model.is_primary && <span className="text-yellow-400 ml-1">★</span>}
+                    </div>
+                  ))}
+                  {provider.models.length > 3 && (
+                    <div className="bg-dark-600 rounded-lg px-2 py-1 text-xs text-gray-400">
+                      +{provider.models.length - 3} more
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -186,6 +241,11 @@ export function Dashboard() {
             ) : (
               <div>
                 <div className="flex items-center gap-3 mb-4">
+                  <button onClick={() => setSelectedProvider(null)} className="text-gray-400 hover:text-white text-sm">
+                    ← Back
+                  </button>
+                </div>
+                <div className="flex items-center gap-3 mb-4">
                   <div className="text-3xl">{selectedProvider.icon}</div>
                   <div>
                     <h4 className="font-medium text-white">{selectedProvider.name}</h4>
@@ -201,6 +261,18 @@ export function Dashboard() {
                   placeholder={selectedProvider.requires_api_key ? "Enter your API key" : "Optional"}
                   className="input-base mb-4"
                 />
+
+                <div className="mb-4">
+                  <p className="text-sm text-gray-400 mb-2">Models to add:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedProvider.suggested_models.map((m) => (
+                      <div key={m.id} className="bg-dark-700 rounded-lg px-3 py-1 text-sm text-gray-300">
+                        {m.name}
+                        {m.recommended && <span className="text-green-400 ml-1">★</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 
                 <div className="flex gap-3">
                   <button
@@ -210,12 +282,6 @@ export function Dashboard() {
                   >
                     {saving && <Loader2 className="animate-spin" size={16} />}
                     Add Provider
-                  </button>
-                  <button
-                    onClick={() => { setSelectedProvider(null); setApiKey(''); }}
-                    className="btn-secondary"
-                  >
-                    Back
                   </button>
                   <button
                     onClick={() => { setShowAddDialog(false); setSelectedProvider(null); setApiKey(''); }}
