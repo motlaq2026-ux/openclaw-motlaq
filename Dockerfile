@@ -29,7 +29,7 @@ COPY . .
 
 # Create data directory and all default files
 RUN mkdir -p /app/data /app/data/backups && \
-    echo '{"version":"2.0.0","active_model_id":"groq-llama-70b","models":[{"id":"groq-llama-70b","name":"Llama 3.3 70B","provider":"groq","model_id":"llama-3.3-70b-versatile","api_key_source":"env","api_key_env":"GROQ_API_KEY","api_key_value":"","base_url":"https://api.groq.com/openai/v1","max_tokens":4096,"temperature":0.7,"capabilities":["text","tools"],"priority":1}],"system_prompt":"أنت مساعد ذكي.","skills":{"web_search":{"enabled":true},"python_repl":{"enabled":true},"vision":{"enabled":true}},"telegram_enabled":true,"telegram_config":{"allowed_users":[],"allowed_groups":[],"require_mention_in_groups":true},"limits":{"max_threads":100,"max_messages_per_thread":50,"usage_history_days":30,"max_log_size_mb":10},"backup":{"enabled":true,"interval_hours":24},"metadata":{}}' > /app/data/config.json && \
+    echo '{"version":"2.0.0","active_model_id":null,"models":[],"system_prompt":"أنت OpenClaw، مساعد ذكي ومفيد.","skills":{"web_search":{"enabled":true},"python_repl":{"enabled":true},"vision":{"enabled":false}},"telegram_enabled":false,"telegram_config":{"allowed_users":[],"allowed_groups":[],"require_mention_in_groups":true},"limits":{"max_threads":100,"max_messages_per_thread":50,"usage_history_days":30,"max_log_size_mb":10},"backup":{"enabled":true,"interval_hours":24},"metadata":{"setup_required":true}}' > /app/data/config.json && \
     echo '{"last_updated":null,"total_requests":0,"total_tokens":0,"daily":{},"models":{}}' > /app/data/usage.json && \
     echo '{"threads":{}}' > /app/data/threads.json && \
     echo '{"servers":{},"updated_at":null}' > /app/data/mcp.json && \

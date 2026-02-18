@@ -100,6 +100,48 @@
     function renderDashboard() {
         const activeModel = state.models?.find(m => m.id === state.config?.active_model_id);
         const enabledSkills = state.skills?.filter(s => s.enabled) || [];
+        const hasModels = state.models?.length > 0;
+        const needsSetup = !activeModel;
+        
+        if (needsSetup) {
+            return `<h2 class="text-2xl font-bold mb-6 gradient-text">🦞 مرحباً بك في OpenClaw Fortress</h2>
+            <div class="card p-8 mb-6 text-center border-2 border-[#f94d3a]">
+                <div class="text-6xl mb-4">🦞</div>
+                <h3 class="text-xl font-bold mb-2">يبدو أنك جديد هنا!</h3>
+                <p class="text-gray-400 mb-6">لنبدأ بإضافة نموذج AI للعمل</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="card p-4 cursor-pointer hover:border-[#f94d3a]" onclick="showAddProvider('groq')">
+                        <div class="text-3xl mb-2">⚡</div>
+                        <div class="font-bold">Groq</div>
+                        <div class="text-xs text-green-400">مجاني</div>
+                    </div>
+                    <div class="card p-4 cursor-pointer hover:border-[#f94d3a]" onclick="showAddProvider('google')">
+                        <div class="text-3xl mb-2">🔵</div>
+                        <div class="font-bold">Google Gemini</div>
+                        <div class="text-xs text-green-400">مجاني</div>
+                    </div>
+                    <div class="card p-4 cursor-pointer hover:border-[#f94d3a]" onclick="showAddProvider('cerebras')">
+                        <div class="text-3xl mb-2">🚀</div>
+                        <div class="font-bold">Cerebras</div>
+                        <div class="text-xs text-green-400">مجاني</div>
+                    </div>
+                </div>
+                <div class="text-sm text-gray-500">
+                    <p>💡 للحصول على API Key مجاني:</p>
+                    <p>Groq: <a href="https://console.groq.com" class="text-[#f94d3a]" target="_blank">console.groq.com</a></p>
+                    <p>Gemini: <a href="https://aistudio.google.com" class="text-[#f94d3a]" target="_blank">aistudio.google.com</a></p>
+                </div>
+            </div>
+            <div class="card p-6">
+                <h3 class="font-bold mb-4">⚙️ إعدادات HF Spaces Secrets</h3>
+                <p class="text-sm text-gray-400 mb-2">أضف هذه المتغيرات في Settings > Secrets:</p>
+                <code class="block bg-[#0a0a0b] p-3 rounded text-sm">
+                    GROQ_API_KEY=gsk_xxx<br>
+                    TELEGRAM_BOT_TOKEN=xxx (اختياري)
+                </code>
+            </div>`;
+        }
+        
         return `<h2 class="text-2xl font-bold mb-6 gradient-text">📊 لوحة التحكم</h2>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div class="card p-4"><div class="text-3xl mb-2">🤖</div><div class="text-sm text-gray-400">النموذج النشط</div><div class="font-bold">${activeModel?.name || 'غير محدد'}</div></div>
@@ -113,6 +155,10 @@
         </div>
         <div class="card p-6 mb-6"><h3 class="font-bold mb-4">🎯 النموذج النشط</h3><div class="flex items-center justify-between"><div><span class="text-2xl ml-2">${activeModel?.provider === 'groq' ? '⚡' : activeModel?.provider === 'google' ? '🔵' : '🟢'}</span><span class="font-bold">${activeModel?.name || 'غير محدد'}</span></div><button onclick="testAI()" class="px-4 py-2 btn-primary rounded-lg">🧪 اختبار</button></div></div>
         <div class="card p-6"><h3 class="font-bold mb-4">⚡ المهارات المفعلة</h3><div class="flex flex-wrap gap-2">${enabledSkills.map(s => `<span class="px-3 py-1 bg-[#1a1a1d] rounded-full text-sm">${s.icon} ${s.name}</span>`).join('') || '<span class="text-gray-500">لا توجد مهارات مفعلة</span>'}</div></div>`;
+    }
+    
+    function showAddProvider(provider) {
+        alert(`لإضافة ${provider}:\n\n1. احصل على API Key من الموقع\n2. أضفه في HF Spaces Secrets\n3. أعد تشغيل الـ Space`);
     }
     
     function renderModels() {
