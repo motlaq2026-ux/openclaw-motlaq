@@ -1,7 +1,7 @@
 import { useAppStore } from '../../stores/appStore';
 import { useEffect, useState } from 'react';
 import { api, AITestResult, OfficialProvider, ConfiguredProvider } from '../../lib/api';
-import { Trash2, Star, Loader2, CheckCircle, Eye, EyeOff, Zap, Clock, TestTube, Plus, Edit, X } from 'lucide-react';
+import { Trash2, Star, Loader2, CheckCircle, Eye, EyeOff, Zap, Clock, TestTube, Plus, Edit, X, Copy } from 'lucide-react';
 import clsx from 'clsx';
 
 interface ProviderDialogProps {
@@ -324,6 +324,7 @@ export function AIConfig() {
   const [testResults, setTestResults] = useState<Record<string, AITestResult>>({});
   const [showDialog, setShowDialog] = useState(false);
   const [editingProvider, setEditingProvider] = useState<ConfiguredProvider | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadAIConfig();
@@ -367,6 +368,32 @@ export function AIConfig() {
   const handleEdit = (provider: ConfiguredProvider) => {
     setEditingProvider(provider);
     setShowDialog(true);
+  };
+
+  const handleDuplicate = async (provider: ConfiguredProvider) => {
+    const newName = `${provider.name}-copy`;
+    if (confirm(`Duplicate provider as "${newName}"?`)) {
+      setSaving(true);
+      try {
+        await api.saveProvider({
+          provider_name: newName,
+          base_url: provider.base_url,
+          api_key: undefined,
+          api_type: provider.models[0]?.api_type || 'openai-completions',
+          models: provider.models.map(m => ({
+            id: m.id,
+            name: m.name,
+            context_window: m.context_window,
+            max_tokens: m.max_tokens,
+          })),
+        });
+        await loadAIConfig();
+      } catch (e) {
+        alert('Failed to duplicate: ' + e);
+      } finally {
+        setSaving(false);
+      }
+    }
   };
 
   if (loading) {
@@ -434,6 +461,13 @@ export function AIConfig() {
                     className="btn-secondary text-sm flex items-center gap-1"
                   >
                     <Edit size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDuplicate(provider)}
+                    className="btn-secondary text-sm flex items-center gap-1"
+                    title="Duplicate provider"
+                  >
+                    <Copy size={14} />
                   </button>
                   <button
                     onClick={() => handleDelete(provider.name)}
