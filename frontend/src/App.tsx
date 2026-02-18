@@ -9,6 +9,7 @@ import { Channels } from './components/Channels';
 import { Agents } from './components/Agents';
 import { Logs } from './components/Logs';
 import { Settings } from './components/Settings';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 
 const pages = {
   dashboard: Dashboard,
@@ -106,12 +107,14 @@ Press any key to close this help.`);
   const Page = pages[currentPage];
 
   return (
-    <div className="min-h-screen flex bg-dark-950">
-      <Sidebar />
-      <main className="flex-1 overflow-hidden">
-        <Page />
-      </main>
-    </div>
+    <ErrorBoundary>
+      <div className="min-h-screen flex bg-dark-950">
+        <Sidebar />
+        <main className="flex-1 overflow-hidden">
+          <Page />
+        </main>
+      </div>
+    </ErrorBoundary>
   );
 }
 
