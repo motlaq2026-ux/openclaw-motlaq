@@ -239,3 +239,206 @@ class LogsQueryParams(BaseModel):
 
 class ThreadSearchQuery(BaseModel):
     q: str
+
+
+# ============ AI Provider Models ============
+
+
+class SuggestedModel(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    context_window: Optional[int] = None
+    max_tokens: Optional[int] = None
+    recommended: bool = False
+
+
+class OfficialProvider(BaseModel):
+    id: str
+    name: str
+    icon: str
+    default_base_url: Optional[str] = None
+    api_type: str = "openai-completions"
+    suggested_models: List[SuggestedModel] = []
+    requires_api_key: bool = True
+    docs_url: Optional[str] = None
+
+
+class ProviderModelConfig(BaseModel):
+    id: str
+    name: str
+    api: Optional[str] = None
+    input: List[str] = ["text"]
+    context_window: Optional[int] = None
+    max_tokens: Optional[int] = None
+    reasoning: Optional[bool] = None
+    cost: Optional[Dict[str, float]] = None
+
+
+class ConfiguredModel(BaseModel):
+    full_id: str
+    id: str
+    name: str
+    api_type: Optional[str] = None
+    context_window: Optional[int] = None
+    max_tokens: Optional[int] = None
+    is_primary: bool = False
+
+
+class ConfiguredProvider(BaseModel):
+    name: str
+    base_url: str
+    api_key_masked: Optional[str] = None
+    has_api_key: bool = False
+    models: List[ConfiguredModel] = []
+
+
+class AIConfigOverview(BaseModel):
+    primary_model: Optional[str] = None
+    configured_providers: List[ConfiguredProvider] = []
+    available_models: List[str] = []
+
+
+class SaveProviderRequest(BaseModel):
+    provider_name: str
+    base_url: str
+    api_key: Optional[str] = None
+    api_type: str = "openai-completions"
+    models: List[ProviderModelConfig] = []
+
+
+class AITestResult(BaseModel):
+    success: bool
+    provider: str
+    model: str
+    response: Optional[str] = None
+    error: Optional[str] = None
+    latency_ms: Optional[int] = None
+
+
+# ============ Channel Models ============
+
+
+class TelegramAccount(BaseModel):
+    id: str
+    bot_token: Optional[str] = None
+    dm_policy: Optional[str] = None
+    group_policy: Optional[str] = None
+    stream_mode: Optional[str] = None
+    groups: Optional[Dict[str, Any]] = None
+    exclusive_topics: Optional[List[str]] = None
+    allow_from: Optional[List[str]] = None
+    primary: Optional[bool] = None
+
+
+class ChannelConfig(BaseModel):
+    id: str
+    channel_type: str
+    enabled: bool = False
+    config: Dict[str, Any] = {}
+
+
+class ChannelField(BaseModel):
+    key: str
+    label: str
+    type: str = "text"
+    placeholder: Optional[str] = None
+    options: Optional[List[Dict[str, str]]] = None
+    required: bool = False
+
+
+class ChannelInfo(BaseModel):
+    name: str
+    icon: str
+    color: str
+    fields: List[ChannelField] = []
+    help_text: Optional[str] = None
+
+
+# ============ Agent Routing Models ============
+
+
+class MatchRule(BaseModel):
+    channel: Optional[str] = None
+    account_id: Optional[str] = None
+    peer: Optional[Any] = None
+
+
+class AgentBinding(BaseModel):
+    agent_id: str
+    match_rule: MatchRule
+
+
+class SubagentConfig(BaseModel):
+    allow_agents: Optional[List[str]] = None
+
+
+class SubagentDefaults(BaseModel):
+    max_spawn_depth: Optional[int] = None
+    max_children_per_agent: Optional[int] = None
+    max_concurrent: Optional[int] = None
+
+
+class AgentInfo(BaseModel):
+    id: str
+    name: Optional[str] = None
+    workspace: Optional[str] = None
+    agent_dir: Optional[str] = None
+    model: Optional[str] = None
+    sandbox: Optional[bool] = None
+    heartbeat: Optional[str] = None
+    default: Optional[bool] = None
+    subagents: Optional[SubagentConfig] = None
+
+
+class AgentsConfigResponse(BaseModel):
+    agents: List[AgentInfo] = []
+    bindings: List[AgentBinding] = []
+    subagent_defaults: SubagentDefaults = SubagentDefaults()
+
+
+class RoutingTestResult(BaseModel):
+    matched: bool
+    agent_id: str
+    agent_dir: Optional[str] = None
+    model: Optional[str] = None
+    system_prompt_preview: Optional[str] = None
+    message: Optional[str] = None
+
+
+# ============ Environment Models ============
+
+
+class EnvConfig(BaseModel):
+    key: str
+    value: str
+
+
+# ============ MCP Models ============
+
+
+class MCPInstallRequest(BaseModel):
+    url: str
+    mode: Literal["plugin", "source"] = "source"
+
+
+class MCPConfigDetail(BaseModel):
+    command: str = ""
+    args: List[str] = []
+    env: Dict[str, str] = {}
+    url: str = ""
+    enabled: bool = True
+
+
+# ============ Skill Models ============
+
+
+class SkillMarketplaceItem(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    icon: str = "🔧"
+    category: str = "general"
+    version: str = "1.0.0"
+    author: str = "Unknown"
+    installed: bool = False

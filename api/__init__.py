@@ -85,6 +85,22 @@ from models import (
     UpdateModelRequest,
     SkillToggleRequest,
     BackupData,
+    OfficialProvider,
+    SuggestedModel,
+    ConfiguredProvider,
+    ConfiguredModel,
+    AIConfigOverview,
+    ProviderModelConfig,
+    SaveProviderRequest,
+    AITestResult,
+    TelegramAccount,
+    ChannelConfig,
+    AgentBinding,
+    MatchRule,
+    AgentInfo,
+    AgentsConfigResponse,
+    SubagentDefaults,
+    RoutingTestResult,
 )
 from core.mcp_manager import mcp_manager, MCPServer
 from core.skills_registry import skills_registry, Skill
@@ -915,3 +931,584 @@ async def get_nuclear_status():
             "real_time_logs": True,
         },
     }
+
+
+# === Official Providers Endpoint ===
+
+
+@router.get("/providers/official")
+async def get_official_providers():
+    providers = [
+        OfficialProvider(
+            id="anthropic",
+            name="Anthropic Claude",
+            icon="🟣",
+            default_base_url="https://api.anthropic.com",
+            api_type="anthropic-messages",
+            requires_api_key=True,
+            docs_url="https://docs.anthropic.com",
+            suggested_models=[
+                SuggestedModel(
+                    id="claude-opus-4-5-20251101",
+                    name="Claude Opus 4.5",
+                    description="Most powerful",
+                    context_window=200000,
+                    max_tokens=8192,
+                    recommended=True,
+                ),
+                SuggestedModel(
+                    id="claude-sonnet-4-5-20250929",
+                    name="Claude Sonnet 4.5",
+                    description="Balanced",
+                    context_window=200000,
+                    max_tokens=8192,
+                ),
+            ],
+        ),
+        OfficialProvider(
+            id="openai",
+            name="OpenAI",
+            icon="🟢",
+            default_base_url="https://api.openai.com/v1",
+            api_type="openai-completions",
+            requires_api_key=True,
+            docs_url="https://platform.openai.com/docs",
+            suggested_models=[
+                SuggestedModel(
+                    id="gpt-4o",
+                    name="GPT-4o",
+                    description="Latest multimodal",
+                    context_window=128000,
+                    max_tokens=4096,
+                    recommended=True,
+                ),
+                SuggestedModel(
+                    id="gpt-4o-mini",
+                    name="GPT-4o Mini",
+                    description="Fast and economical",
+                    context_window=128000,
+                    max_tokens=4096,
+                ),
+            ],
+        ),
+        OfficialProvider(
+            id="google",
+            name="Google Gemini",
+            icon="✨",
+            default_base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            api_type="openai-completions",
+            requires_api_key=True,
+            docs_url="https://ai.google.dev/gemini-api/docs/openai",
+            suggested_models=[
+                SuggestedModel(
+                    id="gemini-2.5-flash",
+                    name="Gemini 2.5 Flash",
+                    description="Fast multimodal",
+                    context_window=1048576,
+                    max_tokens=8192,
+                    recommended=True,
+                ),
+                SuggestedModel(
+                    id="gemini-2.5-pro",
+                    name="Gemini 2.5 Pro",
+                    description="Complex reasoning",
+                    context_window=1048576,
+                    max_tokens=8192,
+                ),
+            ],
+        ),
+        OfficialProvider(
+            id="groq",
+            name="Groq",
+            icon="⚡",
+            default_base_url="https://api.groq.com/openai/v1",
+            api_type="openai-completions",
+            requires_api_key=True,
+            docs_url="https://console.groq.com/docs",
+            suggested_models=[
+                SuggestedModel(
+                    id="llama-3.3-70b-versatile",
+                    name="Llama 3.3 70B",
+                    description="Fast & powerful",
+                    context_window=128000,
+                    max_tokens=8192,
+                    recommended=True,
+                ),
+                SuggestedModel(
+                    id="llama-3.1-8b-instant",
+                    name="Llama 3.1 8B",
+                    description="Ultra fast",
+                    context_window=128000,
+                    max_tokens=8192,
+                ),
+            ],
+        ),
+        OfficialProvider(
+            id="cerebras",
+            name="Cerebras",
+            icon="🧠",
+            default_base_url="https://api.cerebras.ai/v1",
+            api_type="openai-completions",
+            requires_api_key=True,
+            docs_url="https://inference-docs.cerebras.ai",
+            suggested_models=[
+                SuggestedModel(
+                    id="llama-3.3-70b",
+                    name="Llama 3.3 70B",
+                    description="Ultra fast inference",
+                    context_window=128000,
+                    max_tokens=8192,
+                    recommended=True,
+                ),
+            ],
+        ),
+        OfficialProvider(
+            id="deepseek",
+            name="DeepSeek",
+            icon="🔵",
+            default_base_url="https://api.deepseek.com",
+            api_type="openai-completions",
+            requires_api_key=True,
+            docs_url="https://api-docs.deepseek.com",
+            suggested_models=[
+                SuggestedModel(
+                    id="deepseek-chat",
+                    name="DeepSeek V3",
+                    description="Latest chat model",
+                    context_window=128000,
+                    max_tokens=8192,
+                    recommended=True,
+                ),
+                SuggestedModel(
+                    id="deepseek-reasoner",
+                    name="DeepSeek R1",
+                    description="Reasoning model",
+                    context_window=128000,
+                    max_tokens=8192,
+                ),
+            ],
+        ),
+        OfficialProvider(
+            id="moonshot",
+            name="Moonshot (Kimi)",
+            icon="🌙",
+            default_base_url="https://api.moonshot.cn/v1",
+            api_type="openai-completions",
+            requires_api_key=True,
+            docs_url="https://platform.moonshot.cn/docs",
+            suggested_models=[
+                SuggestedModel(
+                    id="moonshot-v1-128k",
+                    name="Moonshot 128K",
+                    description="Ultra long context",
+                    context_window=128000,
+                    max_tokens=8192,
+                    recommended=True,
+                ),
+            ],
+        ),
+        OfficialProvider(
+            id="qwen",
+            name="Qwen (Tongyi)",
+            icon="🔮",
+            default_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            api_type="openai-completions",
+            requires_api_key=True,
+            docs_url="https://help.aliyun.com/document_detail/2712195.html",
+            suggested_models=[
+                SuggestedModel(
+                    id="qwen-max",
+                    name="Qwen Max",
+                    description="Most powerful",
+                    context_window=128000,
+                    max_tokens=8192,
+                    recommended=True,
+                ),
+                SuggestedModel(
+                    id="qwen-plus",
+                    name="Qwen Plus",
+                    description="Balanced",
+                    context_window=128000,
+                    max_tokens=8192,
+                ),
+            ],
+        ),
+        OfficialProvider(
+            id="openrouter",
+            name="OpenRouter",
+            icon="🔄",
+            default_base_url="https://openrouter.ai/api/v1",
+            api_type="openai-completions",
+            requires_api_key=True,
+            docs_url="https://openrouter.ai/docs",
+            suggested_models=[
+                SuggestedModel(
+                    id="anthropic/claude-opus-4",
+                    name="Claude Opus 4",
+                    description="Via OpenRouter",
+                    context_window=200000,
+                    max_tokens=8192,
+                    recommended=True,
+                ),
+            ],
+        ),
+        OfficialProvider(
+            id="ollama",
+            name="Ollama (Local)",
+            icon="🟠",
+            default_base_url="http://localhost:11434",
+            api_type="openai-completions",
+            requires_api_key=False,
+            docs_url="https://ollama.ai/docs",
+            suggested_models=[
+                SuggestedModel(
+                    id="llama3.2",
+                    name="Llama 3.2",
+                    description="Run locally",
+                    context_window=128000,
+                    max_tokens=4096,
+                    recommended=True,
+                ),
+            ],
+        ),
+    ]
+    return {"providers": providers}
+
+
+# === AI Config Overview Endpoint ===
+
+
+@router.get("/providers/ai-config")
+async def get_ai_config_overview():
+    config = load_config()
+    primary_model = config.get("active_model_id")
+    models_list = config.get("models", [])
+    configured_providers = []
+    providers_map = {}
+    for m in models_list:
+        provider_name = m.get("provider", "unknown")
+        if provider_name not in providers_map:
+            providers_map[provider_name] = {
+                "name": provider_name,
+                "base_url": m.get("base_url", ""),
+                "api_key_masked": None,
+                "has_api_key": bool(
+                    m.get("api_key_value")
+                    or os.getenv(f"{provider_name.upper()}_API_KEY")
+                ),
+                "models": [],
+            }
+            if m.get("api_key_value"):
+                key = m["api_key_value"]
+                providers_map[provider_name]["api_key_masked"] = (
+                    f"{key[:4]}...{key[-4:]}" if len(key) > 8 else "****"
+                )
+        model_full_id = m.get("id", "")
+        providers_map[provider_name]["models"].append(
+            ConfiguredModel(
+                full_id=model_full_id,
+                id=m.get("model_id", model_full_id),
+                name=m.get("name", model_full_id),
+                api_type=m.get("api_type"),
+                context_window=m.get("context_window"),
+                max_tokens=m.get("max_tokens"),
+                is_primary=(model_full_id == primary_model),
+            )
+        )
+    configured_providers = list(providers_map.values())
+    available_models = [m.get("id") for m in models_list]
+    return AIConfigOverview(
+        primary_model=primary_model,
+        configured_providers=configured_providers,
+        available_models=available_models,
+    )
+
+
+# === Save Provider Endpoint ===
+
+
+@router.post("/providers/save")
+async def save_provider_endpoint(req: SaveProviderRequest):
+    config = load_config()
+    if "providers" not in config:
+        config["providers"] = {}
+    provider_config = {
+        "base_url": req.base_url,
+        "api_type": req.api_type,
+        "models": [],
+    }
+    if req.api_key:
+        provider_config["api_key"] = req.api_key
+    for m in req.models:
+        model_entry = {
+            "id": m.id,
+            "name": m.name,
+            "api": m.api or req.api_type,
+            "input": m.input or ["text"],
+        }
+        if m.context_window:
+            model_entry["context_window"] = m.context_window
+        if m.max_tokens:
+            model_entry["max_tokens"] = m.max_tokens
+        provider_config["models"].append(model_entry)
+        existing = next(
+            (
+                x
+                for x in config.get("models", [])
+                if x.get("id") == f"{req.provider_name}/{m.id}"
+            ),
+            None,
+        )
+        if not existing:
+            config.setdefault("models", []).append(
+                {
+                    "id": f"{req.provider_name}/{m.id}",
+                    "name": m.name,
+                    "provider": req.provider_name,
+                    "model_id": m.id,
+                    "base_url": req.base_url,
+                    "api_key_source": "direct" if req.api_key else "env",
+                    "api_key_value": req.api_key or "",
+                    "max_tokens": m.max_tokens or 4096,
+                    "temperature": 0.7,
+                    "capabilities": m.input or ["text"],
+                }
+            )
+    config["providers"][req.provider_name] = provider_config
+    save_config(config)
+    return {"ok": True, "message": f"Provider {req.provider_name} saved"}
+
+
+# === Delete Provider Endpoint ===
+
+
+@router.delete("/providers/{provider_name}")
+async def delete_provider_endpoint(provider_name: str):
+    config = load_config()
+    if "providers" in config and provider_name in config["providers"]:
+        del config["providers"][provider_name]
+    config["models"] = [
+        m for m in config.get("models", []) if m.get("provider") != provider_name
+    ]
+    if config.get("active_model_id", "").startswith(f"{provider_name}/"):
+        config["active_model_id"] = None
+    save_config(config)
+    return {"ok": True, "message": f"Provider {provider_name} deleted"}
+
+
+# === Set Primary Model Endpoint ===
+
+
+@router.post("/providers/primary")
+async def set_primary_model_endpoint(request: Request):
+    data = await request.json()
+    model_id = data.get("model_id")
+    if not model_id:
+        return JSONResponse(
+            {"ok": False, "error": "model_id required"}, status_code=400
+        )
+    config = load_config()
+    config["active_model_id"] = model_id
+    save_config(config)
+    return {"ok": True, "active_model_id": model_id}
+
+
+# === Test Provider Endpoint ===
+
+
+@router.post("/providers/test")
+async def test_provider_endpoint(request: Request):
+    import time
+    from openai import AsyncOpenAI
+
+    data = await request.json()
+    provider_name = data.get("provider", "unknown")
+    base_url = data.get("base_url", "")
+    api_key = data.get("api_key") or os.getenv(f"{provider_name.upper()}_API_KEY", "")
+    model_id = data.get("model_id", "gpt-3.5-turbo")
+    if not api_key:
+        return AITestResult(
+            success=False,
+            provider=provider_name,
+            model=model_id,
+            error="No API key provided",
+        )
+    start = time.time()
+    try:
+        client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        response = await client.chat.completions.create(
+            model=model_id,
+            messages=[{"role": "user", "content": "Say 'OK' in one word"}],
+            max_tokens=5,
+        )
+        latency = int((time.time() - start) * 1000)
+        return AITestResult(
+            success=True,
+            provider=provider_name,
+            model=model_id,
+            response=response.choices[0].message.content,
+            latency_ms=latency,
+        )
+    except Exception as e:
+        return AITestResult(
+            success=False, provider=provider_name, model=model_id, error=str(e)
+        )
+
+
+# === Channels Endpoints ===
+
+
+CHANNELS_CONFIG_PATH = Path("/app/data/channels.json")
+
+
+def load_channels_config():
+    if CHANNELS_CONFIG_PATH.exists():
+        return json.loads(CHANNELS_CONFIG_PATH.read_text())
+    return {}
+
+
+def save_channels_config(channels):
+    CHANNELS_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CHANNELS_CONFIG_PATH.write_text(json.dumps(channels, indent=2, ensure_ascii=False))
+
+
+@router.get("/channels")
+async def list_channels():
+    channels = load_channels_config()
+    return {"channels": channels}
+
+
+@router.get("/channels/{channel_type}")
+async def get_channel(channel_type: str):
+    channels = load_channels_config()
+    return channels.get(channel_type, {"enabled": False, "config": {}})
+
+
+@router.post("/channels/{channel_type}")
+async def save_channel(channel_type: str, request: Request):
+    data = await request.json()
+    channels = load_channels_config()
+    channels[channel_type] = {
+        "enabled": data.get("enabled", True),
+        "config": data.get("config", {}),
+    }
+    save_channels_config(channels)
+    return {"ok": True, "channel": channel_type}
+
+
+@router.delete("/channels/{channel_type}")
+async def clear_channel(channel_type: str):
+    channels = load_channels_config()
+    if channel_type in channels:
+        del channels[channel_type]
+        save_channels_config(channels)
+    return {"ok": True}
+
+
+@router.post("/channels/{channel_type}/test")
+async def test_channel(channel_type: str, request: Request):
+    data = await request.json()
+    if channel_type == "telegram":
+        import aiohttp
+
+        bot_token = data.get("bot_token") or data.get("config", {}).get("botToken")
+        if not bot_token:
+            return {"success": False, "error": "No bot token provided"}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"https://api.telegram.org/bot{bot_token}/getMe"
+                ) as resp:
+                    result = await resp.json()
+                    if result.get("ok"):
+                        return {
+                            "success": True,
+                            "bot_username": result["result"].get("username"),
+                        }
+                    return {"success": False, "error": result.get("description")}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    return {"success": False, "error": f"Unknown channel type: {channel_type}"}
+
+
+# === Telegram Accounts Endpoints ===
+
+
+TELEGRAM_ACCOUNTS_PATH = Path("/app/data/telegram_accounts.json")
+
+
+def load_telegram_accounts():
+    if TELEGRAM_ACCOUNTS_PATH.exists():
+        return json.loads(TELEGRAM_ACCOUNTS_PATH.read_text())
+    return []
+
+
+def save_telegram_accounts(accounts):
+    TELEGRAM_ACCOUNTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    TELEGRAM_ACCOUNTS_PATH.write_text(
+        json.dumps(accounts, indent=2, ensure_ascii=False)
+    )
+
+
+@router.get("/channels/telegram/accounts")
+async def list_telegram_accounts():
+    accounts = load_telegram_accounts()
+    return {"accounts": accounts}
+
+
+@router.post("/channels/telegram/accounts")
+async def save_telegram_account_endpoint(request: Request):
+    data = await request.json()
+    accounts = load_telegram_accounts()
+    account_id = data.get("id")
+    existing_idx = next(
+        (i for i, a in enumerate(accounts) if a.get("id") == account_id), None
+    )
+    account = TelegramAccount(**data).dict()
+    if existing_idx is not None:
+        accounts[existing_idx] = account
+    else:
+        accounts.append(account)
+    save_telegram_accounts(accounts)
+    return {"ok": True, "account": account}
+
+
+@router.delete("/channels/telegram/accounts/{account_id}")
+async def delete_telegram_account(account_id: str):
+    accounts = load_telegram_accounts()
+    accounts = [a for a in accounts if a.get("id") != account_id]
+    save_telegram_accounts(accounts)
+    return {"ok": True}
+
+
+# === Fetch Telegram Users ===
+
+
+@router.get("/channels/telegram/users")
+async def fetch_telegram_users(bot_token: str = Query(...)):
+    import aiohttp
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"https://api.telegram.org/bot{bot_token}/getUpdates?limit=100"
+            ) as resp:
+                data = await resp.json()
+                if not data.get("ok"):
+                    return {"users": [], "error": data.get("description")}
+                user_map = {}
+                for update in data.get("result", []):
+                    from_user = update.get("message", {}).get("from") or update.get(
+                        "callback_query", {}
+                    ).get("from")
+                    if from_user and not from_user.get("is_bot"):
+                        uid = str(from_user["id"])
+                        if uid not in user_map:
+                            user_map[uid] = {
+                                "id": uid,
+                                "name": f"{from_user.get('first_name', '')} {from_user.get('last_name', '')}".strip(),
+                                "username": from_user.get("username"),
+                            }
+                return {"users": list(user_map.values())}
+    except Exception as e:
+        return {"users": [], "error": str(e)}

@@ -7,101 +7,114 @@ sdk: docker
 app_file: app.py
 pinned: false
 license: mit
-short_description: Personal AI Assistant - Free Forever - Nuclear Edition
+short_description: Personal AI Assistant - Free Forever - Web Dashboard
 ---
 
 # 🦞 OpenClaw Fortress
 
-**Personal AI Assistant - Free Forever - Self-Healing & Auto-Updating**
+**Personal AI Assistant - Free Forever - React Dashboard**
 
 ---
 
-## ☢️ النظام النووي - يعمل 3 سنين بدون صيانة!
+## ✨ Features
 
-### 🔄 Auto-Update
-- فحص تلقائي للتحديثات كل 24 ساعة
-- نسخ احتياطي تلقائي قبل التحديث
+### 🖥️ Modern Web Dashboard
+- **React + TypeScript** frontend with Tailwind CSS
+- **8 pages**: Dashboard, AI Config, MCP, Skills, Channels, Agents, Logs, Settings
+- **Real-time updates** with Zustand state management
+- **Dark theme** optimized
 
-### 💊 Self-Healing
-- تعافي تلقائي من 6 أنواع أخطاء
-- إعادة تشغيل الخدمات المتعطلة
+### 🤖 AI Provider Support
+- **12+ providers**: Anthropic, OpenAI, Google Gemini, Groq, Cerebras, DeepSeek, Moonshot, Qwen, OpenRouter, Ollama
+- **One-click setup** for each provider
+- **Model management** with primary model selection
 
-### 📊 Health Monitor
-- مراقبة CPU, Memory, Disk
-- إشعارات عند تجاوز 90%
+### 📡 Message Channels
+- **Telegram** with multi-account support
+- **Discord**, **Slack** support
+- **User allowlist** management
 
-### 🔒 Thread Safety
-- جميع core modules مؤمنة
-- كتابة آمنة للملفات
+### 🔌 MCP Servers
+- Add MCP servers via command or URL
+- Enable/disable servers
+- Test connectivity
+
+### 🧠 Multi-Agent System
+- Create agents with custom personalities
+- Set different models per agent
+- System prompts per agent
 
 ---
 
-## 🚀 للتشغيل
+## 🚀 Quick Start
 
 ### HuggingFace Spaces
-أضف Secrets:
+Add these secrets:
 ```
 GROQ_API_KEY=gsk_xxx
-TELEGRAM_BOT_TOKEN=xxx (اختياري)
+TELEGRAM_BOT_TOKEN=xxx (optional)
 ```
 
-### محلياً
+### Local Development
 ```bash
+# Backend
 pip install -r requirements.txt
 GROQ_API_KEY=gsk_xxx uvicorn app:app --host 0.0.0.0 --port 7860
+
+# Frontend (development)
+cd frontend && npm install && npm run dev
 ```
 
 ---
 
-## 📍 الروابط
+## 📍 Routes
 
-| الرابط | الوصف |
-|--------|-------|
-| `/` | الصفحة الرئيسية |
-| `/admin` | لوحة التحكم |
-| `/gradio` | واجهة الشات |
-| `/api/docs` | توثيق API |
-| `/api/health` | فحص الصحة |
+| Route | Description |
+|-------|-------------|
+| `/` | Landing page |
+| `/admin` | React Dashboard |
+| `/gradio` | Chat interface |
+| `/api/docs` | API documentation |
 
 ---
 
 ## 🛠️ API Endpoints
 
-- **73 Endpoint** للتحكم الكامل
-- **8 Nuclear Systems** تعمل تلقائياً
-- **WebSocket Logs** مراقبة حية
+- **GET /api/providers/official** - List official providers
+- **GET /api/providers/ai-config** - Get AI configuration
+- **POST /api/providers/save** - Save provider
+- **DELETE /api/providers/{name}** - Delete provider
+- **POST /api/providers/primary** - Set primary model
+- **GET /api/channels** - List channels
+- **POST /api/channels/{type}** - Save channel config
+- **GET /api/channels/telegram/accounts** - List Telegram accounts
+- **GET /api/mcp** - List MCP servers
+- **GET /api/agents** - List agents
+- **GET /api/logs** - Get logs
+- ...and more
 
 ---
 
-## 💰 التكلفة
+## 💰 Cost
 
-| الخدمة | التكلفة |
-|--------|---------|
+| Service | Cost |
+|---------|------|
 | HF Spaces | **$0** |
 | Groq API | **$0** |
 | Gemini API | **$0** |
-| **المجموع** | **$0/شهر** |
+| **Total** | **$0/month** |
 
 ---
 
-## 🔑 الحصول على API Keys
+## 🔑 Get API Keys
 
-| المزود | الرابط |
-|--------|--------|
+| Provider | Link |
+|----------|------|
 | Groq | [console.groq.com](https://console.groq.com) |
 | Gemini | [aistudio.google.com](https://aistudio.google.com) |
 | Cerebras | [cloud.cerebras.ai](https://cloud.cerebras.ai) |
-
----
-
-## 📊 الإحصائيات
-
-| العنصر | العدد |
-|--------|-------|
-| Python Files | 14 |
-| Lines of Code | 4,500+ |
-| API Endpoints | 73 |
-| Nuclear Systems | 8 |
+| OpenAI | [platform.openai.com](https://platform.openai.com) |
+| Anthropic | [console.anthropic.com](https://console.anthropic.com) |
 
 ---
 
