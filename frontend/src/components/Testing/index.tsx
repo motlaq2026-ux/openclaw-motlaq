@@ -16,7 +16,6 @@ import {
   HardDrive,
   Wifi,
 } from 'lucide-react';
-import clsx from 'clsx';
 
 interface DiagnosticResult {
   name: string;
@@ -74,12 +73,13 @@ export function Testing() {
         check: async () => {
           try {
             const config = await api.getConfig();
-            const hasProviders = config?.providers && Object.keys(config.providers).length > 0;
+            const providers = config?.providers as Record<string, unknown> | undefined;
+            const hasProviders = providers && Object.keys(providers).length > 0;
             return {
               name: 'Configuration',
               passed: true,
               message: hasProviders 
-                ? `${Object.keys(config.providers).length} provider(s) configured`
+                ? `${Object.keys(providers!).length} provider(s) configured`
                 : 'Configuration loaded but no providers',
               suggestion: hasProviders ? null : 'Add at least one AI provider',
             };

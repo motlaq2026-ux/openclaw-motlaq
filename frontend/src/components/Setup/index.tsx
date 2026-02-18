@@ -96,10 +96,6 @@ export function Setup({ onComplete, embedded = false }: SetupProps) {
     onComplete();
   };
 
-  const recommendedProviders = officialProviders.filter(p => 
-    ['groq', 'gemini', 'cerebras'].includes(p.id)
-  );
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">

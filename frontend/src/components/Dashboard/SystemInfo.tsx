@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   CheckCircle2,
   Loader2,
-  Download,
   ExternalLink,
   Cpu,
   GitBranch,

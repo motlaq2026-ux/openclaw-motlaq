@@ -3,24 +3,11 @@ import { api } from '../../lib/api';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Loader2, ToggleLeft, ToggleRight, Book, Package, Download, 
-  Trash2, Plus, Search, Filter, Info, CheckCircle, XCircle,
+  Loader2, ToggleLeft, ToggleRight, Book, Download, 
+  Trash2, Plus, Search, Info, CheckCircle, XCircle,
   Zap, Code, Globe, FileText, Terminal
 } from 'lucide-react';
 import clsx from 'clsx';
-
-interface SkillFull {
-  id: string;
-  name: string;
-  description?: string;
-  icon?: string;
-  category: string;
-  enabled: boolean;
-  installed?: boolean;
-  version?: string;
-  author?: string;
-  tools?: string[];
-}
 
 const categoryIcons: Record<string, React.ReactNode> = {
   search: <Globe size={16} />,
@@ -154,8 +141,8 @@ export function Skills() {
         <AnimatePresence>
           {filteredSkills.map((skill) => {
             const isExpanded = expandedSkill === skill.id;
-            const categoryIcon = categoryIcons[skill.category] || categoryIcons.default;
-            const categoryColor = categoryColors[skill.category] || categoryColors.default;
+            const categoryIcon = categoryIcons[skill.category || 'default'] || categoryIcons.default;
+            const categoryColor = categoryColors[skill.category || 'default'] || categoryColors.default;
             
             return (
               <motion.div

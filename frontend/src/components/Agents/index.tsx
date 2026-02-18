@@ -2,8 +2,8 @@ import { useAppStore } from '../../stores/appStore';
 import { api } from '../../lib/api';
 import { useEffect, useState } from 'react';
 import { 
-  Loader2, Plus, Trash2, Brain, Users, GitMerge, TestTube, ChevronDown, ChevronRight,
-  Bot, Sparkles, Zap, CheckCircle, XCircle, Edit, Save, X
+  Loader2, Plus, Trash2, Brain, GitMerge, TestTube,
+  Bot, Zap, CheckCircle, XCircle, Save
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -81,7 +81,7 @@ export function Agents() {
     try {
       const config = await api.getConfig();
       if (config.subagent_defaults) {
-        setDefaults(config.subagent_defaults);
+        setDefaults(config.subagent_defaults as SubagentDefaults);
       }
     } catch {
       // Silent fail

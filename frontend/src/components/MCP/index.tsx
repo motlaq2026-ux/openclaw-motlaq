@@ -3,9 +3,9 @@ import { api } from '../../lib/api';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Loader2, Plus, Trash2, ToggleLeft, ToggleRight, Play, Square, 
-  Edit, TestTube, Terminal, Globe, Zap, CheckCircle, XCircle, 
-  ChevronDown, ChevronUp, Copy, Settings
+  Loader2, Plus, Trash2, ToggleLeft, ToggleRight,
+  Edit, TestTube, Terminal, Globe,
+  ChevronDown, ChevronUp, Copy, CheckCircle, XCircle
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -323,7 +323,7 @@ export function MCP() {
                           <div className="col-span-2">
                             <p className="text-gray-500 mb-1">Environment Variables</p>
                             <div className="bg-dark-700 rounded-lg p-2 font-mono text-xs">
-                              {Object.entries(server.env).map(([k, v]) => (
+                              {Object.entries(server.env).map(([k]) => (
                                 <div key={k} className="text-gray-300">
                                   <span className="text-claw-400">{k}</span>=****
                                 </div>

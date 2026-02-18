@@ -324,7 +324,7 @@ export function AIConfig() {
   const [testResults, setTestResults] = useState<Record<string, AITestResult>>({});
   const [showDialog, setShowDialog] = useState(false);
   const [editingProvider, setEditingProvider] = useState<ConfiguredProvider | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [, setSaving] = useState(false);
 
   useEffect(() => {
     loadAIConfig();

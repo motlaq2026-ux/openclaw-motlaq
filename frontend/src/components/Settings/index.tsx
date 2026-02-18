@@ -4,7 +4,7 @@ import { useTheme, ThemePicker } from '../../lib/theme.tsx';
 import { useState, useEffect } from 'react';
 import { 
   Download, Upload, Save, Loader2, Key, Plus, Trash2, Eye, EyeOff, Cpu, HardDrive, MemoryStick,
-  User, Shield, Globe, FileText, Clock, Zap, FolderOpen, Bell, Palette
+  User, Shield, FileText, Zap, FolderOpen, Bell, Palette
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -139,33 +139,37 @@ export function Settings() {
     try {
       const config = await api.getConfig();
       if (config.identity) {
+        const identity = config.identity as IdentityConfig;
         setIdentity({
-          bot_name: config.identity.bot_name || 'Clawd',
-          user_name: config.identity.user_name || 'Master',
-          timezone: config.identity.timezone || 'UTC',
+          bot_name: identity.bot_name || 'Clawd',
+          user_name: identity.user_name || 'Master',
+          timezone: identity.timezone || 'UTC',
         });
       }
       if (config.heartbeat) {
+        const heartbeat = config.heartbeat as HeartbeatConfig;
         setHeartbeat({
-          every: config.heartbeat.every || '',
-          target: config.heartbeat.target || '',
+          every: heartbeat.every || '',
+          target: heartbeat.target || '',
         });
       }
       if (config.compaction) {
+        const compaction = config.compaction as CompactionConfig;
         setCompaction({
-          enabled: config.compaction.enabled || false,
-          threshold: config.compaction.threshold || 100,
-          context_pruning: config.compaction.context_pruning || false,
-          max_context_messages: config.compaction.max_context_messages || 50,
+          enabled: compaction.enabled || false,
+          threshold: compaction.threshold || 100,
+          context_pruning: compaction.context_pruning || false,
+          max_context_messages: compaction.max_context_messages || 50,
         });
       }
       if (config.workspace) {
+        const workspace = config.workspace as WorkspaceConfig;
         setWorkspace({
-          workspace: config.workspace.workspace || '',
-          timezone: config.workspace.timezone || 'UTC',
-          time_format: config.workspace.time_format || '24h',
-          skip_bootstrap: config.workspace.skip_bootstrap || false,
-          bootstrap_max_chars: config.workspace.bootstrap_max_chars || 8000,
+          workspace: workspace.workspace || '',
+          timezone: workspace.timezone || 'UTC',
+          time_format: workspace.time_format || '24h',
+          skip_bootstrap: workspace.skip_bootstrap || false,
+          bootstrap_max_chars: workspace.bootstrap_max_chars || 8000,
         });
       }
     } catch (e) {

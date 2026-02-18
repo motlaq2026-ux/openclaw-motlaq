@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { api, AIConfigOverview, OfficialProvider, MCPServer, Skill, Agent, ChannelConfig, TelegramAccount, LogEntry, UsageStats } from '../lib/api';
 
-type Page = 'dashboard' | 'ai-config' | 'mcp' | 'skills' | 'channels' | 'agents' | 'logs' | 'settings';
+type Page = 'dashboard' | 'ai-config' | 'mcp' | 'skills' | 'channels' | 'agents' | 'logs' | 'testing' | 'settings';
 
 interface AppState {
   currentPage: Page;
@@ -29,7 +29,7 @@ interface AppState {
   loadUsage: () => Promise<void>;
 }
 
-export const useAppStore = create<AppState>((set, get) => ({
+export const useAppStore = create<AppState>((set) => ({
   currentPage: 'dashboard',
   loading: false,
   error: null,

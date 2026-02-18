@@ -1,7 +1,7 @@
 import { useAppStore } from '../../stores/appStore';
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { Loader2, MessageCircle, Hash, Slack, Users, CheckCircle, XCircle, TestTube, Plus, Trash2, Eye, EyeOff, Bot, Edit, ChevronDown, ChevronUp, Apple, Bell, MessageSquare, MessagesSquare } from 'lucide-react';
+import { Loader2, MessageCircle, Hash, Slack, Users, CheckCircle, XCircle, TestTube, Plus, Trash2, Eye, EyeOff, Bot, ChevronDown, ChevronUp, Apple, Bell, MessageSquare, MessagesSquare } from 'lucide-react';
 import clsx from 'clsx';
 
 const channelTypes = [
@@ -34,10 +34,10 @@ interface TelegramAccount {
 }
 
 interface GroupSettings {
-  requireMention: boolean;
-  enabled: boolean;
-  groupPolicy: string;
-  systemPrompt: string;
+  requireMention?: boolean;
+  enabled?: boolean;
+  groupPolicy?: string;
+  systemPrompt?: string;
 }
 
 function DmAllowListEditor({
@@ -179,13 +179,11 @@ export function Channels() {
   // Telegram multi-account state
   const [telegramAccounts, setTelegramAccounts] = useState<TelegramAccount[]>([]);
   const [showAddAccount, setShowAddAccount] = useState(false);
-  const [editingAccount, setEditingAccount] = useState<TelegramAccount | null>(null);
   const [expandedAccount, setExpandedAccount] = useState<string | null>(null);
   const [accountForm, setAccountForm] = useState<Partial<TelegramAccount>>({});
 
   // Group settings
   const [allowedGroups, setAllowedGroups] = useState<Record<string, GroupSettings>>({});
-  const [allowFromUsers, setAllowFromUsers] = useState<string[]>([]);
   const [newGroupInput, setNewGroupInput] = useState('');
 
   useEffect(() => {
@@ -196,7 +194,7 @@ export function Channels() {
   const loadTelegramAccounts = async () => {
     try {
       const { accounts } = await api.getTelegramAccounts();
-      setTelegramAccounts(accounts);
+      setTelegramAccounts(accounts as TelegramAccount[]);
     } catch (e) {
       console.error('Failed to load telegram accounts:', e);
     }
@@ -207,7 +205,7 @@ export function Channels() {
     setTesting(true);
     setTestResult(null);
     try {
-      const result = await api.testChannel(selected, config);
+      const result = await api.testChannel(selected, config) as { success: boolean; bot_username?: string; error?: string };
       setTestResult({
         success: result.success,
         message: result.success ? `Connected! Bot: @${result.bot_username || 'unknown'}` : result.error || 'Failed',
@@ -228,15 +226,12 @@ export function Channels() {
       if (Object.keys(allowedGroups).length > 0) {
         saveConfig.groups = allowedGroups;
       }
-      if (allowFromUsers.length > 0) {
-        saveConfig.allowFrom = allowFromUsers.map((id) => (/^-?\d+$/.test(id) ? Number(id) : id));
-      }
       await api.saveChannel(selected, { enabled: true, config: saveConfig });
       
       // Save all telegram accounts
       if (selected === 'telegram') {
         for (const account of telegramAccounts) {
-          await api.saveTelegramAccount(account);
+          await api.saveTelegramAccount(account as any);
         }
       }
       
@@ -306,12 +301,6 @@ export function Channels() {
       });
       setNewGroupInput('');
     }
-  };
-
-  const removeGroup = (id: string) => {
-    const next = { ...allowedGroups };
-    delete next[id];
-    setAllowedGroups(next);
   };
 
   if (loading) {

@@ -5,7 +5,7 @@ import { StatusCard } from './StatusCard';
 import { QuickActions } from './QuickActions';
 import { SystemInfo } from './SystemInfo';
 import { Setup } from '../Setup';
-import { Activity, Bot, Zap, Clock, CheckCircle, XCircle, Loader2, Plus, Shield, RefreshCw, Terminal, ChevronDown, ChevronUp } from 'lucide-react';
+import { Activity, CheckCircle, XCircle, Loader2, Plus, Shield, RefreshCw, Terminal, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import clsx from 'clsx';
 
 interface ServiceStatus {
@@ -67,7 +67,7 @@ export function Dashboard() {
 
   const fetchServiceStatus = async () => {
     try {
-      const status = await api.getSystemStatus();
+      await api.getSystemStatus();
       setServiceStatus({
         running: true,
         pid: null,
@@ -185,9 +185,6 @@ export function Dashboard() {
   }
 
   const hasConfig = aiConfig && aiConfig.configured_providers.length > 0;
-  const uptime = nuclearStatus ? Math.floor(nuclearStatus.uptime) : 0;
-  const uptimeHours = Math.floor(uptime / 3600);
-  const uptimeMins = Math.floor((uptime % 3600) / 60);
 
   return (
     <div className="h-full overflow-y-auto scroll-container p-6">
@@ -310,8 +307,8 @@ export function Dashboard() {
                 { name: 'Scheduler', key: 'scheduler', icon: Clock },
               ].map((sys) => {
                 const Icon = sys.icon;
-                const status = nuclearStatus.systems?.[sys.key];
-                const isRunning = typeof status === 'object' ? status?.running !== false : !!status;
+                const status = (nuclearStatus.systems as Record<string, { running?: boolean }>)?.[sys.key];
+                const isRunning = status?.running !== false;
                 return (
                   <div key={sys.key} className="bg-dark-700 rounded-xl p-3 flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isRunning ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
