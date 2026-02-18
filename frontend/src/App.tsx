@@ -9,6 +9,7 @@ import { Channels } from './components/Channels';
 import { Agents } from './components/Agents';
 import { Logs } from './components/Logs';
 import { Settings } from './components/Settings';
+import { Testing } from './components/Testing';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 
 const pages = {
@@ -19,6 +20,7 @@ const pages = {
   channels: Channels,
   agents: Agents,
   logs: Logs,
+  testing: Testing,
   settings: Settings,
 };
 

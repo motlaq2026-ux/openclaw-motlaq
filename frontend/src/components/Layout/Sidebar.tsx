@@ -1,5 +1,5 @@
 import { useAppStore } from '../../stores/appStore';
-import { LayoutDashboard, Bot, Plug, Book, MessageCircle, Brain, ScrollText, Settings, Zap, Keyboard } from 'lucide-react';
+import { LayoutDashboard, Bot, Plug, Book, MessageCircle, Brain, ScrollText, Settings, Zap, Keyboard, Stethoscope } from 'lucide-react';
 import clsx from 'clsx';
 
 const navItems = [
@@ -10,7 +10,8 @@ const navItems = [
   { id: 'channels', label: 'Channels', icon: MessageCircle, shortcut: '5' },
   { id: 'agents', label: 'Agents', icon: Brain, shortcut: '6' },
   { id: 'logs', label: 'Logs', icon: ScrollText, shortcut: '7' },
-  { id: 'settings', label: 'Settings', icon: Settings, shortcut: '8' },
+  { id: 'testing', label: 'Diagnostics', icon: Stethoscope, shortcut: '8' },
+  { id: 'settings', label: 'Settings', icon: Settings, shortcut: '9' },
 ] as const;
 
 export function Sidebar() {

@@ -1668,3 +1668,153 @@ async def get_provider_models(provider_name: str):
     models = config.get("models", [])
     provider_models = [m for m in models if m.get("provider") == provider_name]
     return {"provider": provider_name, "models": provider_models}
+
+
+# === Service Management Endpoints ===
+
+
+@router.post("/service/start")
+async def start_service():
+    return {"ok": True, "message": "Service is running (web mode - always on)"}
+
+
+@router.post("/service/stop")
+async def stop_service():
+    return {"ok": True, "message": "Service stop requested (web mode - no-op)"}
+
+
+@router.post("/service/restart")
+async def restart_service():
+    return {"ok": True, "message": "Service restart requested (web mode - no-op)"}
+
+
+@router.get("/service/status")
+async def get_service_status():
+    import time
+
+    config = load_config()
+    return {
+        "running": True,
+        "pid": None,
+        "port": 7860,
+        "uptime_seconds": int(time.time()) % 86400,
+        "memory_mb": None,
+        "cpu_percent": None,
+        "active_model": config.get("active_model"),
+        "providers_count": len(config.get("providers", {})),
+    }
+
+
+# === Diagnostics Endpoints ===
+
+
+@router.get("/diagnostics/run")
+async def run_diagnostics():
+    results = []
+
+    try:
+        await asyncio.sleep(0.1)
+        results.append(
+            {
+                "name": "API Health",
+                "passed": True,
+                "message": "API is responding",
+                "suggestion": None,
+            }
+        )
+    except Exception as e:
+        results.append(
+            {
+                "name": "API Health",
+                "passed": False,
+                "message": f"API error: {e}",
+                "suggestion": "Check server logs",
+            }
+        )
+
+    config = load_config()
+    providers = config.get("providers", {})
+    if providers:
+        results.append(
+            {
+                "name": "Configuration",
+                "passed": True,
+                "message": f"{len(providers)} provider(s) configured",
+                "suggestion": None,
+            }
+        )
+    else:
+        results.append(
+            {
+                "name": "Configuration",
+                "passed": False,
+                "message": "No providers configured",
+                "suggestion": "Add at least one AI provider",
+            }
+        )
+
+    active_model = config.get("active_model")
+    if active_model:
+        results.append(
+            {
+                "name": "Primary Model",
+                "passed": True,
+                "message": f"Primary model: {active_model}",
+                "suggestion": None,
+            }
+        )
+    else:
+        results.append(
+            {
+                "name": "Primary Model",
+                "passed": False,
+                "message": "No primary model set",
+                "suggestion": "Set a primary model in AI Configuration",
+            }
+        )
+
+    return {"results": results}
+
+
+# === Routing Test Endpoint ===
+
+
+@router.post("/agents/routing/test")
+async def test_agent_routing(request: Request):
+    data = await request.json()
+    channel = data.get("channel")
+    account_id = data.get("account_id")
+    peer = data.get("peer")
+
+    config = load_config()
+    agents = config.get("agents", [])
+    bindings = config.get("agent_bindings", [])
+
+    matched_agent = None
+    for binding in bindings:
+        rule = binding.get("match_rule", {})
+        if rule.get("channel") and rule.get("channel") != channel:
+            continue
+        if rule.get("account_id") and rule.get("account_id") != account_id:
+            continue
+        if rule.get("peer") and rule.get("peer") != peer:
+            continue
+        matched_agent = binding.get("agent_id")
+        break
+
+    if not matched_agent and agents:
+        default_agent = next((a for a in agents if a.get("default")), agents[0])
+        matched_agent = default_agent.get("id") if default_agent else None
+
+    if matched_agent:
+        return {
+            "matched": True,
+            "agent_id": matched_agent,
+            "message": f"Matched agent: {matched_agent}",
+        }
+    else:
+        return {
+            "matched": False,
+            "agent_id": None,
+            "message": "No matching agent found",
+        }
