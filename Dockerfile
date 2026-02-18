@@ -37,7 +37,7 @@ COPY . .
 
 COPY --from=frontend-builder /app/frontend/dist /app/static
 
-RUN mkdir -p /app/data /app/data/backups && \
+RUN mkdir -p /app/static/assets /app/data /app/data/backups && \
     echo '{"version":"2.0.0","active_model_id":null,"models":[],"system_prompt":"You are OpenClaw, a helpful AI assistant.","skills":{"web_search":{"enabled":true},"python_repl":{"enabled":true},"vision":{"enabled":false}},"telegram_enabled":false,"telegram_config":{"allowed_users":[],"allowed_groups":[],"require_mention_in_groups":true},"limits":{"max_threads":100,"max_messages_per_thread":50,"usage_history_days":30,"max_log_size_mb":10},"backup":{"enabled":true,"interval_hours":24},"metadata":{"setup_required":true}}' > /app/data/config.json && \
     echo '{"last_updated":null,"total_requests":0,"total_tokens":0,"daily":{},"models":{}}' > /app/data/usage.json && \
     echo '{"threads":{}}' > /app/data/threads.json && \

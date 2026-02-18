@@ -49,8 +49,11 @@ app.add_middleware(
 app.include_router(api_router, prefix="/api")
 
 STATIC_DIR = Path(__file__).parent / "static"
+ASSETS_DIR = STATIC_DIR / "assets"
+
 if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    if ASSETS_DIR.exists():
+        app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 
 
 def setup_health_checks():
@@ -200,6 +203,15 @@ async def root():
 
 @app.get("/admin", response_class=HTMLResponse)
 async def dashboard():
+    if DASHBOARD_PATH.exists():
+        return HTMLResponse(DASHBOARD_PATH.read_text(encoding="utf-8"))
+    return HTMLResponse(
+        "<h1>Dashboard not found. Build the frontend first.</h1>", status_code=404
+    )
+
+
+@app.get("/admin/{path:path}", response_class=HTMLResponse)
+async def dashboard_spa(path: str):
     if DASHBOARD_PATH.exists():
         return HTMLResponse(DASHBOARD_PATH.read_text(encoding="utf-8"))
     return HTMLResponse(
