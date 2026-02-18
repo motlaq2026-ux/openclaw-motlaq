@@ -4,6 +4,7 @@ import { api, OfficialProvider, NuclearStatus } from '../../lib/api';
 import { StatusCard } from './StatusCard';
 import { QuickActions } from './QuickActions';
 import { SystemInfo } from './SystemInfo';
+import { Setup } from '../Setup';
 import { Activity, Bot, Zap, Clock, CheckCircle, XCircle, Loader2, Plus, Shield, RefreshCw, Terminal, ChevronDown, ChevronUp } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -199,25 +200,22 @@ export function Dashboard() {
           <button onClick={() => { loadAIConfig(); loadNuclearStatus(); fetchServiceStatus(); }} className="btn-secondary flex items-center gap-2">
             <RefreshCw size={16} /> Refresh
           </button>
-          <button onClick={() => setShowAddDialog(true)} className="btn-primary flex items-center gap-2">
-            <Plus size={18} />
-            Add Provider
-          </button>
+          {hasConfig && (
+            <button onClick={() => setShowAddDialog(true)} className="btn-primary flex items-center gap-2">
+              <Plus size={18} />
+              Add Provider
+            </button>
+          )}
         </div>
       </div>
 
       <div className="space-y-6">
         {!hasConfig && (
-          <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-6">
-            <h3 className="text-lg font-semibold text-amber-400 mb-2">Setup Required</h3>
-            <p className="text-gray-400 mb-4">
-              No AI providers configured. Add a provider to get started.
-            </p>
-            <button onClick={() => setShowAddDialog(true)} className="btn-primary">
-              Add Your First Provider
-            </button>
-          </div>
+          <Setup onComplete={() => loadAIConfig()} embedded />
         )}
+
+        {hasConfig && (
+          <>
 
         <StatusCard status={serviceStatus} loading={serviceLoading} />
 
@@ -368,6 +366,8 @@ export function Dashboard() {
               ))}
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
 
