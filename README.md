@@ -4,6 +4,7 @@ emoji: 🦞
 colorFrom: red
 colorTo: orange
 sdk: docker
+app_file: app.py
 pinned: false
 license: mit
 short_description: Personal AI Assistant - Free Forever - Nuclear Edition
