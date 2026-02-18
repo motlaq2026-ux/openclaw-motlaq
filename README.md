@@ -2,7 +2,7 @@
 title: OpenClaw Fortress
 emoji: 🦞
 colorFrom: red
-colorTo: orange
+colorTo: yellow
 sdk: docker
 app_file: app.py
 pinned: false
