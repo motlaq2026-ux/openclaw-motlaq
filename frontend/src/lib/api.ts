@@ -52,6 +52,7 @@ async function request<T>(path: string, options: RequestConfig = {}): Promise<T>
     const res = await fetch(`${API_BASE}${path}`, {
       ...options,
       headers,
+      redirect: 'follow',
     });
 
     // Handle specific error codes
