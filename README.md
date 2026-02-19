@@ -6,7 +6,7 @@ colorTo: blue
 sdk: docker
 pinned: false
 license: mit
-short_description: Full-feature OpenClaw Manager web port for Hugging Face Spaces
+short_description: OpenClaw Manager web dashboard for Hugging Face
 ---
 
 # OpenClaw Manager Web (Hugging Face)
