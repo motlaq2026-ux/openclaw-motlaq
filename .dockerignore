@@ -1,62 +1,20 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-*.egg-info/
-.eggs/
-
-# Virtual environments
-venv/
-env/
-.venv/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Caches
-.ruff_cache/
-.mypy_cache/
-.pytest_cache/
-
-# Node
-frontend/node_modules/
-frontend/dist/
-
-# Data files (runtime)
-data/
-*.json
-!config.json.example
-!frontend/package.json
-!frontend/package-lock.json
-
-# Logs
-logs/
-*.log
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Git
-.git/
+.git
+.github
 .gitignore
 
-# GitHub
-.github/
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
 
-# Build artifacts
-*.bak
-backups/
+**/node_modules
+**/dist
 
-# Keep static directory but ignore old files
-static/
+openclaw-manager-main/src-tauri
+openclaw-manager-main/pic
+
+.env
+.env.*
+
+*.log

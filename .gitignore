@@ -12,6 +12,8 @@ eggs/
 .eggs/
 lib/
 !frontend/src/lib/
+!openclaw-manager-main/src/lib/
+!openclaw-manager-main/src/lib/**
 lib64/
 parts/
 sdist/
@@ -42,6 +44,10 @@ data/
 !config.json.example
 !frontend/package.json
 !frontend/package-lock.json
+!openclaw-manager-main/package.json
+!openclaw-manager-main/package-lock.json
+!openclaw-manager-main/tsconfig.json
+!openclaw-manager-main/tsconfig.node.json
 
 # Logs
 logs/

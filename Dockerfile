@@ -1,64 +1,37 @@
-# Stage 1: Build Frontend
-FROM node:20-alpine AS frontend-builder
+# syntax=docker/dockerfile:1
 
-WORKDIR /app/frontend
-
-COPY frontend/package.json frontend/package-lock.json ./
+FROM node:22-bookworm-slim AS frontend-build
+WORKDIR /app
+COPY openclaw-manager-main/package*.json ./
 RUN npm ci
-
-COPY frontend/ ./
+COPY openclaw-manager-main/ ./
 RUN npm run build
 
-# Stage 2: Python Backend
-FROM python:3.11-slim-bookworm
-
-LABEL maintainer="OpenClaw Team"
-LABEL description="OpenClaw Fortress - Personal AI Assistant - Nuclear Edition"
-LABEL version="2.0.0-nuclear"
-
+FROM node:22-bookworm-slim AS runtime
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    HOME=/app \
-    PORT=7860
+    PORT=7860 \
+    OPENCLAW_HOME=/data/.openclaw \
+    MANAGER_DATA_DIR=/data/openclaw-manager
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      python3 \
+      python3-pip \
+      ca-certificates \
+      git \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY openclaw-manager-main/requirements.txt ./requirements.txt
+RUN pip3 install --break-system-packages -r requirements.txt
 
-COPY . .
+# Best-effort CLI tooling; image stays usable even if some packages fail to install.
+RUN npm install -g openclaw clawhub mcporter || true
 
-COPY --from=frontend-builder /app/static /app/static
-
-RUN mkdir -p /app/static/assets /app/data /app/data/backups && \
-    echo '{"version":"2.0.0","active_model_id":null,"models":[],"system_prompt":"You are OpenClaw, a helpful AI assistant.","skills":{"web_search":{"enabled":true},"python_repl":{"enabled":true},"vision":{"enabled":false}},"telegram_enabled":false,"telegram_config":{"allowed_users":[],"allowed_groups":[],"require_mention_in_groups":true},"limits":{"max_threads":100,"max_messages_per_thread":50,"usage_history_days":30,"max_log_size_mb":10},"backup":{"enabled":true,"interval_hours":24},"metadata":{"setup_required":true}}' > /app/data/config.json && \
-    echo '{"last_updated":null,"total_requests":0,"total_tokens":0,"daily":{},"models":{}}' > /app/data/usage.json && \
-    echo '{"threads":{}}' > /app/data/threads.json && \
-    echo '{}' > /app/data/mcp.json && \
-    echo '{}' > /app/data/skills.json && \
-    echo '{"agents": {}}' > /app/data/agents.json && \
-    echo '{"tasks": {}}' > /app/data/scheduler.json && \
-    echo '{"entries": []}' > /app/data/logs.json && \
-    echo '{}' > /app/data/channels.json && \
-    echo '[]' > /app/data/telegram_accounts.json && \
-    chmod -R 755 /app && \
-    chmod -R 777 /app/data
-
-RUN useradd -m -u 1000 openclaw && \
-    chown -R openclaw:openclaw /app
-
-USER openclaw
+COPY openclaw-manager-main/backend ./backend
+COPY --from=frontend-build /app/dist ./dist
 
 EXPOSE 7860
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:7860/api/health || exit 1
-
-CMD ["uvicorn", "app_secure:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["python3", "backend/main.py"]
