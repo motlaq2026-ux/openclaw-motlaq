@@ -21,6 +21,7 @@ import psutil
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 SERVICE_PORT = int(os.getenv("OPENCLAW_PORT", "18789"))
 NODE_MIN_MAJOR = 22
@@ -2141,9 +2142,12 @@ async def command(cmd: str, request: Request) -> JSONResponse:
         return JSONResponse(status_code=400, content={"ok": False, "error": "Request payload must be an object"})
 
     try:
-        result = handler(payload)
-        if asyncio.iscoroutine(result):
-            result = await result
+        if asyncio.iscoroutinefunction(handler):
+            result = await handler(payload)
+        else:
+            # Run sync commands in a worker thread so one slow command does not
+            # block the entire API for other pages.
+            result = await run_in_threadpool(handler, payload)
         return JSONResponse(content={"ok": True, "data": result})
     except CommandError as exc:
         _log(f"Command error [{cmd}]: {exc}")

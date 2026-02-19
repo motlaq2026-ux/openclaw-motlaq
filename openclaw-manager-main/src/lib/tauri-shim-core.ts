@@ -3,6 +3,8 @@ export type InvokeArgs = Record<string, unknown> | undefined;
 const WEB_MANAGER_FLAG = '__OPENCLAW_WEB_MANAGER__';
 const MANAGER_TOKEN_KEY = 'openclaw_manager_api_token';
 const LEGACY_TOKEN_KEY = 'openclaw_api_key';
+const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
+const LONG_COMMAND_TIMEOUT_MS = 190000;
 
 declare global {
   interface Window {
@@ -48,16 +50,44 @@ function getAuthHeaders(token?: string | null): Record<string, string> {
   };
 }
 
+function getCommandTimeoutMs(cmd: string): number {
+  // Commands that are expected to run for a long time.
+  if (
+    cmd === 'update_openclaw' ||
+    cmd === 'install_openclaw' ||
+    cmd === 'install_nodejs' ||
+    cmd === 'install_mcp_from_git' ||
+    cmd === 'install_mcp_plugin'
+  ) {
+    return LONG_COMMAND_TIMEOUT_MS;
+  }
+  return DEFAULT_REQUEST_TIMEOUT_MS;
+}
+
 async function requestCommand(cmd: string, args?: InvokeArgs, token?: string | null): Promise<Response> {
-  const response = await fetch(`/api/command/${cmd}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(token),
-    },
-    body: JSON.stringify(args ?? {}),
-  });
-  return response;
+  const controller = new AbortController();
+  const timeoutMs = getCommandTimeoutMs(cmd);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`/api/command/${cmd}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(token),
+      },
+      body: JSON.stringify(args ?? {}),
+      signal: controller.signal,
+    });
+    return response;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${Math.ceil(timeoutMs / 1000)}s (${cmd})`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function invoke<T>(cmd: string, args?: InvokeArgs): Promise<T> {
