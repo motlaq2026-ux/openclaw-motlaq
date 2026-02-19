@@ -177,16 +177,33 @@ function App() {
     }
   }, []);
 
+  const invokeWithTimeout = useCallback(async (cmd: string, timeoutMs: number): Promise<unknown> => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error(`Request timed out after ${Math.ceil(timeoutMs / 1000)}s`));
+      }, timeoutMs);
+    });
+
+    try {
+      return await Promise.race([invoke<unknown>(cmd), timeoutPromise]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }, []);
+
   // Perform update
-  const handleUpdate = async () => {
+  const handleUpdate = useCallback(async () => {
     setUpdating(true);
     setUpdateResult(null);
     try {
-      const result = await invoke<UpdateResult>('update_openclaw');
+      const result = await invokeWithTimeout('update_openclaw', 180000) as UpdateResult;
       setUpdateResult(result);
       if (result.success) {
         // Re-check environment after successful update
         await checkEnvironment();
+        await checkUpdate();
         // Close notification after 3 seconds
         setTimeout(() => {
           setShowUpdateBanner(false);
@@ -194,15 +211,16 @@ function App() {
         }, 3000);
       }
     } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
       setUpdateResult({
         success: false,
-        message: 'Error occurred during update',
-        error: String(e),
+        message: 'Update failed',
+        error: errorMessage,
       });
     } finally {
       setUpdating(false);
     }
-  };
+  }, [invokeWithTimeout, checkEnvironment, checkUpdate]);
 
   useEffect(() => {
     appLogger.info('🦞 App component mounted');

@@ -34,6 +34,16 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value.strip())
+    except Exception:
+        return default
+
+
 def _resolve_openclaw_home() -> Path:
     env_home = os.getenv("OPENCLAW_HOME", "").strip()
     if env_home:
@@ -727,11 +737,16 @@ def cmd_check_openclaw_update(_: dict[str, Any]) -> dict[str, Any]:
     error = None
 
     if _command_exists("npm"):
-        proc = _run_cmd(["npm", "view", "openclaw", "version"], timeout=30)
-        if proc.returncode == 0:
-            latest = _extract_version(proc.stdout.strip())
-        else:
-            error = proc.stderr.strip() or proc.stdout.strip() or "Failed to fetch latest version"
+        try:
+            proc = _run_cmd(["npm", "view", "openclaw", "version"], timeout=30)
+            if proc.returncode == 0:
+                latest = _extract_version(proc.stdout.strip())
+            else:
+                error = proc.stderr.strip() or proc.stdout.strip() or "Failed to fetch latest version"
+        except subprocess.TimeoutExpired:
+            error = "Timeout while checking latest OpenClaw version from npm."
+        except Exception as exc:
+            error = str(exc)
     else:
         error = "npm not found"
 
@@ -749,10 +764,53 @@ def cmd_update_openclaw(_: dict[str, Any]) -> dict[str, Any]:
     if not _command_exists("npm"):
         return _install_result(False, "npm not found", "Cannot update OpenClaw without npm")
 
-    proc = _run_cmd(["npm", "install", "-g", "openclaw@latest"], timeout=900)
+    current_version = _openclaw_version()
+    timeout_seconds = max(30, min(_env_int("MANAGER_UPDATE_TIMEOUT_SECONDS", 240), 900))
+    npm_args = [
+        "npm",
+        "install",
+        "-g",
+        "openclaw@latest",
+        "--no-audit",
+        "--no-fund",
+        "--prefer-online",
+        "--fetch-timeout=30000",
+        "--fetch-retries=2",
+        "--fetch-retry-mintimeout=5000",
+        "--fetch-retry-maxtimeout=15000",
+        "--loglevel=error",
+    ]
+
+    try:
+        proc = _run_cmd(npm_args, timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        return _install_result(
+            False,
+            "Update timed out",
+            f"npm did not finish within {timeout_seconds}s. Please check connectivity and try again.",
+        )
+    except Exception as exc:
+        return _install_result(False, "Failed to update OpenClaw", str(exc))
+
     if proc.returncode != 0:
         return _install_result(False, "Failed to update OpenClaw", proc.stderr.strip() or proc.stdout.strip())
-    return _install_result(True, f"OpenClaw updated to {_openclaw_version() or 'latest'}")
+
+    updated_version = _openclaw_version()
+    if not updated_version:
+        return _install_result(
+            False,
+            "Update finished but version check failed",
+            "openclaw command is unavailable after update attempt.",
+        )
+
+    if current_version and _version_tuple(updated_version) <= _version_tuple(current_version):
+        return _install_result(
+            False,
+            f"OpenClaw is still {updated_version}",
+            "npm completed but version did not change. Runtime policy may block global updates.",
+        )
+
+    return _install_result(True, f"OpenClaw updated to {updated_version}")
 
 
 def cmd_get_service_status(_: dict[str, Any]) -> dict[str, Any]:
