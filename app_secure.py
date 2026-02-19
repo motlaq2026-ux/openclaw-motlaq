@@ -6,7 +6,7 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -57,9 +57,9 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RateLimitMiddleware, requests_per_minute=120)
 app.add_middleware(CORSMiddlewareSecure)
 
-# Mount static files
+# Mount static files at /admin
 if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.mount("/admin", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 
 
 @app.exception_handler(Exception)
@@ -75,11 +75,10 @@ app.include_router(api_router)
 
 @app.get("/")
 async def root():
-    """Serve the frontend."""
-    index_path = os.path.join(STATIC_DIR, "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return {"message": "OpenClaw Fortress API", "version": "2.1.0"}
+    """Redirect to admin."""
+    from fastapi.responses import RedirectResponse
+
+    return RedirectResponse(url="/admin")
 
 
 @app.get("/api")
