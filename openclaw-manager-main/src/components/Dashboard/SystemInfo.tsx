@@ -24,6 +24,7 @@ interface EnvironmentStatus {
   openclaw_installed: boolean;
   openclaw_version: string | null;
   gateway_service_installed: boolean;
+  gateway_service_supported?: boolean;
   config_dir_exists: boolean;
   ready: boolean;
   os: string;
@@ -121,9 +122,10 @@ export function SystemInfo() {
     setInstalling('gateway');
     setError(null);
     try {
-      await invoke<string>('install_gateway_service');
-      // Gateway install opens an elevated terminal — user needs to complete it there
-      // Don't auto-refresh; user clicks Refresh when done
+      const message = await invoke<string>('install_gateway_service');
+      if (message.toLowerCase().includes('not supported')) {
+        setError(message);
+      }
     } catch (e) {
       setError(`Failed to install Gateway Service: ${e}`);
     } finally {
@@ -195,7 +197,7 @@ export function SystemInfo() {
       installAction: handleInstallOpenclaw,
       canAutoInstall: true,
     },
-    ...(envStatus.openclaw_installed ? [{
+    ...(envStatus.openclaw_installed && envStatus.gateway_service_supported !== false ? [{
       id: 'gateway',
       name: 'Gateway Service',
       description: 'System service (requires admin)',

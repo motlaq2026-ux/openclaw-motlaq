@@ -27,6 +27,8 @@ export interface EnvironmentStatus {
   git_version: string | null;
   openclaw_installed: boolean;
   openclaw_version: string | null;
+  gateway_service_installed?: boolean;
+  gateway_service_supported?: boolean;
   config_dir_exists: boolean;
   ready: boolean;
   os: string;
@@ -36,6 +38,9 @@ interface ServiceStatus {
   running: boolean;
   pid: number | null;
   port: number;
+  uptime_seconds: number | null;
+  memory_mb: number | null;
+  cpu_percent: number | null;
 }
 
 interface UpdateInfo {
@@ -161,6 +166,17 @@ function App() {
     }
   }, []);
 
+  const fetchServiceStatus = useCallback(async () => {
+    if (!isTauri()) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    try {
+      const status = await invoke<ServiceStatus>('get_service_status');
+      setServiceStatus(status);
+    } catch {
+      // Silently handle polling errors
+    }
+  }, []);
+
   // Perform update
   const handleUpdate = async () => {
     setUpdating(true);
@@ -213,21 +229,11 @@ function App() {
 
   // Periodically get service status
   useEffect(() => {
-    // Don't poll if not in Tauri environment
     if (!isTauri()) return;
-
-    const fetchServiceStatus = async () => {
-      try {
-        const status = await invoke<ServiceStatus>('get_service_status');
-        setServiceStatus(status);
-      } catch {
-        // Silently handle polling errors
-      }
-    };
     fetchServiceStatus();
-    const interval = setInterval(fetchServiceStatus, 3000);
+    const interval = setInterval(fetchServiceStatus, 6000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchServiceStatus]);
 
   const handleSetupComplete = useCallback(() => {
     appLogger.info('Setup wizard completed');
@@ -248,7 +254,14 @@ function App() {
     };
 
     const pages: Record<PageType, JSX.Element> = {
-      dashboard: <Dashboard envStatus={envStatus} onSetupComplete={handleSetupComplete} />,
+      dashboard: (
+        <Dashboard
+          envStatus={envStatus}
+          onSetupComplete={handleSetupComplete}
+          serviceStatus={serviceStatus}
+          refreshServiceStatus={fetchServiceStatus}
+        />
+      ),
       mcp: <MCP />,
       skills: <Skills />,
       ai: <AIConfig />,

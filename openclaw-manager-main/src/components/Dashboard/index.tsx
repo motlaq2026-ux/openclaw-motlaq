@@ -13,11 +13,12 @@ import { EnvironmentStatus } from '../../App';
 interface DashboardProps {
   envStatus: EnvironmentStatus | null;
   onSetupComplete: () => void;
+  serviceStatus: ServiceStatus | null;
+  refreshServiceStatus: () => Promise<void>;
 }
 
-export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
-  const [status, setStatus] = useState<ServiceStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+export function Dashboard({ envStatus, onSetupComplete, serviceStatus, refreshServiceStatus }: DashboardProps) {
+  const [loading, setLoading] = useState(serviceStatus === null);
   const [actionLoading, setActionLoading] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [logsExpanded, setLogsExpanded] = useState(true);
@@ -26,21 +27,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
   const [tokenMismatch, setTokenMismatch] = useState(false);
   const [repairing, setRepairing] = useState(false);
   const [repairDismissed, setRepairDismissed] = useState(false);
-
-  const fetchStatus = async () => {
-    if (!isTauri()) {
-      setLoading(false);
-      return;
-    }
-    try {
-      const result = await api.getServiceStatus();
-      setStatus(result);
-    } catch {
-      // Handle silently
-    } finally {
-      setLoading(false);
-    }
-  };
+  const status = serviceStatus;
 
   const fetchLogs = async () => {
     if (!isTauri()) return;
@@ -53,18 +40,22 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
   };
 
   useEffect(() => {
-    fetchStatus();
+    if (serviceStatus !== null) {
+      setLoading(false);
+    }
+  }, [serviceStatus]);
+
+  useEffect(() => {
+    refreshServiceStatus().finally(() => setLoading(false));
     fetchLogs();
     if (!isTauri()) return;
 
-    const statusInterval = setInterval(fetchStatus, 3000);
-    const logsInterval = autoRefreshLogs ? setInterval(fetchLogs, 2000) : null;
+    const logsInterval = autoRefreshLogs ? setInterval(fetchLogs, 5000) : null;
 
     return () => {
-      clearInterval(statusInterval);
       if (logsInterval) clearInterval(logsInterval);
     };
-  }, [autoRefreshLogs]);
+  }, [autoRefreshLogs, refreshServiceStatus]);
 
   // Detect device_token_mismatch from logs
   useEffect(() => {
@@ -85,7 +76,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
     setActionLoading(true);
     try {
       await api.startService();
-      await fetchStatus();
+      await refreshServiceStatus();
       await fetchLogs();
     } catch (e) {
       console.error('Start failed:', e);
@@ -99,7 +90,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
     setActionLoading(true);
     try {
       await api.stopService();
-      await fetchStatus();
+      await refreshServiceStatus();
       await fetchLogs();
     } catch (e) {
       console.error('Stop failed:', e);
@@ -113,7 +104,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
     setActionLoading(true);
     try {
       await api.restartService();
-      await fetchStatus();
+      await refreshServiceStatus();
       await fetchLogs();
     } catch (e) {
       console.error('Restart failed:', e);
@@ -127,7 +118,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
     setActionLoading(true);
     try {
       await invoke<string>('kill_all_port_processes');
-      await fetchStatus();
+      await refreshServiceStatus();
       await fetchLogs();
     } catch (e) {
       console.error('Kill All failed:', e);
@@ -144,7 +135,7 @@ export function Dashboard({ envStatus, onSetupComplete }: DashboardProps) {
       await api.restartService();
       setRepairDismissed(true);
       setTokenMismatch(false);
-      await fetchStatus();
+      await refreshServiceStatus();
       await fetchLogs();
     } catch (e) {
       console.error('Device token repair failed:', e);

@@ -34,8 +34,8 @@ export function ServiceManager() {
     serviceLogger.info('ServiceManager component mounted');
     fetchLogs();
     if (autoRefresh) {
-      serviceLogger.debug('Starting auto refresh (interval: 2s)');
-      const interval = setInterval(fetchLogs, 2000);
+      serviceLogger.debug('Starting auto refresh (interval: 5s)');
+      const interval = setInterval(fetchLogs, 5000);
       return () => {
         serviceLogger.debug('Stopping auto refresh');
         clearInterval(interval);

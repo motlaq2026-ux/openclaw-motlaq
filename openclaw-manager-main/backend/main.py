@@ -13,6 +13,7 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Callable
 
@@ -24,6 +25,13 @@ from fastapi.staticfiles import StaticFiles
 SERVICE_PORT = int(os.getenv("OPENCLAW_PORT", "18789"))
 NODE_MIN_MAJOR = 22
 API_TOKEN = os.getenv("MANAGER_API_TOKEN", "").strip()
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _resolve_openclaw_home() -> Path:
@@ -297,6 +305,34 @@ def _command_exists(name: str) -> bool:
 
 def _openclaw_bin() -> str:
     return os.getenv("OPENCLAW_BIN", "openclaw")
+
+
+def _is_huggingface_space() -> bool:
+    return bool(os.getenv("SPACE_ID") or os.getenv("HF_SPACE_ID") or os.getenv("HUGGINGFACE_SPACE_ID"))
+
+
+def _supports_gateway_service_install() -> bool:
+    if os.getenv("MANAGER_ENABLE_GATEWAY_INSTALL") is not None:
+        return _env_bool("MANAGER_ENABLE_GATEWAY_INSTALL", default=False)
+
+    # Browser/container deployments (e.g. Hugging Face Spaces) should not try
+    # to install OS-level services.
+    if _is_huggingface_space() or Path("/.dockerenv").exists():
+        return False
+
+    return True
+
+
+def _default_dashboard_base_url() -> str:
+    configured = os.getenv("OPENCLAW_DASHBOARD_URL", "").strip()
+    if configured:
+        return configured
+
+    space_host = os.getenv("SPACE_HOST", "").strip()
+    if space_host:
+        return f"https://{space_host}"
+
+    return f"http://localhost:{SERVICE_PORT}"
 
 
 def _run_cmd(args: list[str], timeout: int = 60, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -591,7 +627,8 @@ def cmd_check_environment(_: dict[str, Any]) -> dict[str, Any]:
     node_ok = bool(node_ver and node_major >= NODE_MIN_MAJOR)
     git_ver = _git_version()
     openclaw_ver = _openclaw_version()
-    gateway_installed = _check_port_open(SERVICE_PORT) if openclaw_ver else False
+    gateway_supported = _supports_gateway_service_install()
+    gateway_installed = _check_port_open(SERVICE_PORT) if (gateway_supported and openclaw_ver) else bool(openclaw_ver)
 
     return {
         "node_installed": bool(node_ver),
@@ -602,6 +639,7 @@ def cmd_check_environment(_: dict[str, Any]) -> dict[str, Any]:
         "openclaw_installed": bool(openclaw_ver),
         "openclaw_version": openclaw_ver,
         "gateway_service_installed": gateway_installed,
+        "gateway_service_supported": gateway_supported,
         "config_dir_exists": OPENCLAW_HOME.exists(),
         "ready": bool(node_ok and openclaw_ver),
         "os": platform.system().lower(),
@@ -609,13 +647,17 @@ def cmd_check_environment(_: dict[str, Any]) -> dict[str, Any]:
 
 
 def cmd_install_gateway_service(_: dict[str, Any]) -> str:
+    if not _supports_gateway_service_install():
+        return "Gateway service install is not supported in web/container mode. Use Start Service instead."
+
     if not _command_exists(_openclaw_bin()):
-        raise CommandError("openclaw command not found")
+        return "OpenClaw command not found. Install OpenClaw first."
+
     try:
         output = _run_openclaw(["gateway", "install"], timeout=120)
         return output or "Gateway service installation triggered"
     except Exception as exc:
-        raise CommandError(str(exc)) from exc
+        return f"Gateway service installation failed: {exc}"
 
 
 def cmd_install_nodejs(_: dict[str, Any]) -> dict[str, Any]:
@@ -725,7 +767,7 @@ def cmd_get_service_status(_: dict[str, Any]) -> dict[str, Any]:
             proc = psutil.Process(pid)
             uptime_seconds = int(time.time() - proc.create_time())
             memory_mb = round(proc.memory_info().rss / (1024 * 1024), 2)
-            cpu_percent = round(proc.cpu_percent(interval=0.05), 2)
+            cpu_percent = round(proc.cpu_percent(interval=None), 2)
         except Exception:
             pass
 
@@ -786,14 +828,16 @@ def cmd_get_logs(payload: dict[str, Any]) -> list[str]:
     lines = int(payload.get("lines", 100) or 100)
     lines = max(1, min(lines, 5000))
 
+    # In web mode this endpoint is polled frequently, so prefer local file tail
+    # over spawning a CLI process for every request.
+    local_logs = _tail_lines(OPENCLAW_LOG_FILE, lines)
+    if local_logs:
+        return local_logs
+
     if _command_exists(_openclaw_bin()):
         proc = _run_cmd([_openclaw_bin(), "logs", "--lines", str(lines)], timeout=30)
         if proc.returncode == 0 and proc.stdout.strip():
             return proc.stdout.splitlines()[-lines:]
-
-    fallback = _tail_lines(OPENCLAW_LOG_FILE, lines)
-    if fallback:
-        return fallback
 
     return _tail_lines(MANAGER_LOG_FILE, lines)
 
@@ -881,7 +925,7 @@ def cmd_get_or_create_gateway_token(_: dict[str, Any]) -> str:
 
 
 def cmd_get_dashboard_url(_: dict[str, Any]) -> str:
-    base = os.getenv("OPENCLAW_DASHBOARD_URL", f"http://localhost:{SERVICE_PORT}")
+    base = _default_dashboard_base_url()
     token = cmd_get_or_create_gateway_token({})
     join = "&" if "?" in base else "?"
     return f"{base}{join}token={token}"
@@ -1994,19 +2038,20 @@ COMMANDS: dict[str, Callable[[dict[str, Any]], Any]] = {
 }
 
 
-app = FastAPI(title="OpenClaw Manager Web Bridge", version="1.0.0")
+@asynccontextmanager
+async def _lifespan(_: FastAPI):
+    _ensure_dirs()
+    _ensure_openclaw_defaults()
+    _log("OpenClaw Manager backend started")
+    yield
+
+
+app = FastAPI(title="OpenClaw Manager Web Bridge", version="1.0.0", lifespan=_lifespan)
 
 if FRONTEND_DIST.exists():
     assets_dir = FRONTEND_DIST / "assets"
     if assets_dir.exists():
         app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
-
-
-@app.on_event("startup")
-async def _startup() -> None:
-    _ensure_dirs()
-    _ensure_openclaw_defaults()
-    _log("OpenClaw Manager backend started")
 
 
 @app.get("/api/health")
@@ -2071,4 +2116,9 @@ async def frontend(path: str) -> Any:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "7860")))
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "7860")),
+        access_log=_env_bool("MANAGER_ACCESS_LOG", default=False),
+    )
