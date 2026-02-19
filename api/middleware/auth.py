@@ -4,7 +4,7 @@ import secrets
 import hashlib
 import hmac
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 from fastapi import HTTPException, Security, Depends
 from fastapi.security import APIKeyHeader, HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -108,6 +108,18 @@ class SecurityManager:
             self._failed_attempts[client_ip] = [0, datetime.utcnow()]
         self._failed_attempts[client_ip][0] += 1
         self._failed_attempts[client_ip][1] = datetime.utcnow()
+
+    def list_keys(self) -> List[dict]:
+        """List API keys (without exposing actual keys)."""
+        return [
+            {
+                "name": name,
+                "created": data.get("created"),
+                "last_used": data.get("last_used"),
+                "permissions": data.get("permissions", []),
+            }
+            for name, data in self._api_keys.items()
+        ]
 
 
 # Global security manager instance

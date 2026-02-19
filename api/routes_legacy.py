@@ -47,6 +47,8 @@ from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, HTTPException, Request, Query
 from fastapi.responses import JSONResponse
 
+from api.middleware.auth import security_manager
+
 from config import (
     load_config,
     save_config,
@@ -131,6 +133,7 @@ async def health_check():
         "telegram_enabled": config.get("telegram_enabled", True),
         "uptime_seconds": uptime,
         "enabled_skills": get_enabled_skills(),
+        "api_keys": security_manager.list_keys(),
     }
 
 
