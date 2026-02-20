@@ -346,6 +346,17 @@ def _default_dashboard_base_url() -> str:
     return f"http://localhost:{SERVICE_PORT}"
 
 
+def _should_use_cli_logs() -> bool:
+    if os.getenv("MANAGER_ENABLE_CLI_LOGS") is not None:
+        return _env_bool("MANAGER_ENABLE_CLI_LOGS", default=False)
+
+    # In container/web mode, `openclaw logs` can block or timeout frequently.
+    if _is_huggingface_space() or Path("/.dockerenv").exists():
+        return False
+
+    return True
+
+
 def _run_cmd(args: list[str], timeout: int = 60, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["OPENCLAW_HOME"] = str(OPENCLAW_HOME)
@@ -987,10 +998,17 @@ def cmd_get_logs(payload: dict[str, Any]) -> list[str]:
     if local_logs:
         return local_logs
 
-    if _command_exists(_openclaw_bin()):
-        proc = _run_cmd([_openclaw_bin(), "logs", "--lines", str(lines)], timeout=30)
-        if proc.returncode == 0 and proc.stdout.strip():
-            return proc.stdout.splitlines()[-lines:]
+    if _should_use_cli_logs() and _command_exists(_openclaw_bin()):
+        try:
+            cli_timeout = max(2, min(_env_int("MANAGER_LOGS_CLI_TIMEOUT_SECONDS", 8), 30))
+            proc = _run_cmd([_openclaw_bin(), "logs", "--lines", str(lines)], timeout=cli_timeout)
+            if proc.returncode == 0 and proc.stdout.strip():
+                return proc.stdout.splitlines()[-lines:]
+        except subprocess.TimeoutExpired:
+            # Ignore CLI timeout and fall back to manager logs.
+            pass
+        except Exception:
+            pass
 
     return _tail_lines(MANAGER_LOG_FILE, lines)
 
@@ -1027,8 +1045,9 @@ def cmd_get_openclaw_version(_: dict[str, Any]) -> str | None:
 def cmd_check_secure_version(_: dict[str, Any]) -> dict[str, Any]:
     version = _openclaw_version()
     if not version:
-        raise CommandError("OpenClaw is not installed")
-    return {"current_version": version, "is_secure": _version_gte(version, "2026.1.29")}
+        # Web mode should not hard-fail startup when CLI is unavailable.
+        return {"current_version": "not installed", "is_secure": True, "installed": False}
+    return {"current_version": version, "is_secure": _version_gte(version, "2026.1.29"), "installed": True}
 
 
 def cmd_check_port_in_use(payload: dict[str, Any]) -> bool:
