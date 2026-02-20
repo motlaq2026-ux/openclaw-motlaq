@@ -36,6 +36,13 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_str(name: str, default: str = "") -> str:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip()
+
+
 def _env_int(name: str, default: int) -> int:
     value = os.getenv(name)
     if value is None:
@@ -768,6 +775,102 @@ def _ensure_openclaw_defaults() -> None:
 
     if changed:
         _save_openclaw_config(config)
+
+
+def _bootstrap_models(models_csv: str, api_type: str) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    models: list[dict[str, Any]] = []
+    for raw in models_csv.split(","):
+        model_id = _normalize_model_id(raw)
+        if not model_id or model_id in seen:
+            continue
+        seen.add(model_id)
+        models.append(
+            {
+                "id": model_id,
+                "name": model_id,
+                "api": api_type,
+                "input": ["text"],
+                "context_window": None,
+                "max_tokens": None,
+                "reasoning": False,
+                "cost": None,
+            }
+        )
+    return models
+
+
+def _apply_runtime_bootstrap() -> None:
+    if not _env_bool("MANAGER_BOOTSTRAP_ENABLED", default=False):
+        return
+
+    manager = _load_manager_config()
+    if manager.get("bootstrap_applied") and not _env_bool("MANAGER_BOOTSTRAP_FORCE", default=False):
+        return
+
+    changed = False
+
+    provider_api_key = _env_str("MANAGER_BOOTSTRAP_PROVIDER_API_KEY")
+    if provider_api_key:
+        provider_name = _env_str("MANAGER_BOOTSTRAP_PROVIDER_NAME", "groq")
+        provider_base_url = _env_str("MANAGER_BOOTSTRAP_PROVIDER_BASE_URL", "https://api.groq.com/openai/v1")
+        provider_api_type = _env_str("MANAGER_BOOTSTRAP_PROVIDER_API_TYPE", DEFAULT_API_TYPE)
+        provider_models_csv = _env_str("MANAGER_BOOTSTRAP_PROVIDER_MODELS", "llama-3.3-70b-versatile")
+        try:
+            models = _bootstrap_models(provider_models_csv, provider_api_type)
+            if models:
+                cmd_save_provider(
+                    {
+                        "providerName": provider_name,
+                        "baseUrl": provider_base_url,
+                        "apiKey": provider_api_key,
+                        "apiType": provider_api_type,
+                        "models": models,
+                    }
+                )
+                changed = True
+                _log(f"Runtime bootstrap: provider configured ({provider_name})")
+        except Exception as exc:
+            _log(f"Runtime bootstrap warning [provider]: {exc}")
+
+    telegram_token = _env_str("MANAGER_BOOTSTRAP_TELEGRAM_BOT_TOKEN")
+    telegram_user_id = _env_str("MANAGER_BOOTSTRAP_TELEGRAM_USER_ID")
+    if telegram_token:
+        try:
+            account: dict[str, Any] = {"id": "default", "bot_token": telegram_token, "primary": True}
+            if telegram_user_id:
+                account["allow_from"] = [telegram_user_id]
+            cmd_save_telegram_account({"account": account})
+
+            telegram_cfg: dict[str, Any] = {
+                "botToken": telegram_token,
+                "dmPolicy": "open",
+                "groupPolicy": "open",
+                "streamMode": "partial",
+            }
+            if telegram_user_id:
+                telegram_cfg["userId"] = telegram_user_id
+
+            cmd_save_channel_config(
+                {
+                    "channel": {
+                        "id": "telegram",
+                        "channel_type": "telegram",
+                        "enabled": True,
+                        "respect_enabled": True,
+                        "config": telegram_cfg,
+                    }
+                }
+            )
+            changed = True
+            _log("Runtime bootstrap: telegram channel configured")
+        except Exception as exc:
+            _log(f"Runtime bootstrap warning [telegram]: {exc}")
+
+    if changed:
+        manager = _load_manager_config()
+        manager["bootstrap_applied"] = True
+        _save_manager_config(manager)
 
 
 def _masked_api_key(value: str | None) -> str | None:
@@ -2757,6 +2860,7 @@ COMMANDS: dict[str, Callable[[dict[str, Any]], Any]] = {
 async def _lifespan(_: FastAPI):
     _ensure_dirs()
     _ensure_openclaw_defaults()
+    _apply_runtime_bootstrap()
     _log("OpenClaw Manager backend started")
     yield
 

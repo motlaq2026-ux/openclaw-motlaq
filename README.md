@@ -34,6 +34,24 @@ Open: `http://localhost:7860`
 - `OPENCLAW_HOME`: override OpenClaw home directory (default `/data/.openclaw` when available).
 - `MANAGER_DATA_DIR`: manager data directory (default `/data/openclaw-manager` when available).
 
+### One-time runtime bootstrap (safe way to prefill secrets)
+
+Set these HF Space secrets/variables to pre-create provider + Telegram config on startup (written to runtime config files, not Git):
+
+- `MANAGER_BOOTSTRAP_ENABLED=true`
+- `MANAGER_BOOTSTRAP_PROVIDER_NAME=groq`
+- `MANAGER_BOOTSTRAP_PROVIDER_BASE_URL=https://api.groq.com/openai/v1`
+- `MANAGER_BOOTSTRAP_PROVIDER_API_TYPE=openai-completions`
+- `MANAGER_BOOTSTRAP_PROVIDER_MODELS=llama-3.3-70b-versatile`
+- `MANAGER_BOOTSTRAP_PROVIDER_API_KEY=...`
+- `MANAGER_BOOTSTRAP_TELEGRAM_BOT_TOKEN=...`
+- `MANAGER_BOOTSTRAP_TELEGRAM_USER_ID=...`
+
+Behavior:
+- Bootstrap runs once, then sets `bootstrap_applied` in manager state.
+- You can still edit/delete everything from the UI normally.
+- Use `MANAGER_BOOTSTRAP_FORCE=true` only if you intentionally want to re-apply bootstrap.
+
 If `MANAGER_API_TOKEN` is enabled, the web UI will prompt once for the token and store it in browser localStorage.
 
 ## Notes
