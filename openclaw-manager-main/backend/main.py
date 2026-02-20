@@ -370,6 +370,46 @@ def _run_openclaw(args: list[str], timeout: int = 90) -> str:
     return out or err or "OK"
 
 
+def _is_service_manager_error(message: str) -> bool:
+    lowered = message.lower()
+    markers = [
+        "systemctl",
+        "launchd",
+        "schtasks",
+        "service check failed",
+        "service manager",
+        "gateway service",
+    ]
+    return any(marker in lowered for marker in markers)
+
+
+def _start_gateway_run_detached() -> int:
+    MANAGER_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    OPENCLAW_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    cmd = [
+        _openclaw_bin(),
+        "gateway",
+        "run",
+        "--port",
+        str(SERVICE_PORT),
+        "--allow-unconfigured",
+    ]
+
+    env = os.environ.copy()
+    env["OPENCLAW_HOME"] = str(OPENCLAW_HOME)
+
+    with OPENCLAW_LOG_FILE.open("a", encoding="utf-8") as logs:
+        proc = subprocess.Popen(  # noqa: S603
+            cmd,
+            stdout=logs,
+            stderr=subprocess.STDOUT,
+            env=env,
+            start_new_session=True,
+        )
+    return int(proc.pid)
+
+
 def _extract_version(raw: str | None) -> str | None:
     if not raw:
         return None
@@ -451,6 +491,18 @@ def _wait_for_port(port: int, timeout_seconds: int) -> bool:
             return True
         time.sleep(1)
     return False
+
+
+def _wait_for_port_closed(port: int, timeout_seconds: int) -> bool:
+    start = time.time()
+    while time.time() - start <= timeout_seconds:
+        if not _check_port_open(port):
+            # Avoid transient false negatives during shutdown.
+            time.sleep(0.5)
+            if not _check_port_open(port):
+                return True
+        time.sleep(1)
+    return not _check_port_open(port)
 
 
 def _tail_lines(path: Path, lines: int) -> list[str]:
@@ -846,10 +898,35 @@ def cmd_start_service(_: dict[str, Any]) -> str:
     if not _command_exists(_openclaw_bin()):
         raise CommandError("openclaw command not found")
 
-    _run_openclaw(["gateway", "start"], timeout=90)
-    if not _wait_for_port(SERVICE_PORT, 15):
-        raise CommandError("Service start timeout (15s), please check logs")
+    used_fallback = False
+    started_pid: int | None = None
+
+    if _supports_gateway_service_install():
+        try:
+            _run_openclaw(["gateway", "start"], timeout=90)
+        except CommandError as exc:
+            if _is_service_manager_error(str(exc)):
+                used_fallback = True
+                started_pid = _start_gateway_run_detached()
+                _log(f"gateway start fallback to run mode, pid={started_pid}, reason={exc}")
+            else:
+                raise
+    else:
+        used_fallback = True
+        started_pid = _start_gateway_run_detached()
+        _log(f"gateway start using run mode in container/web, pid={started_pid}")
+
+    timeout_seconds = 15
+    if used_fallback:
+        timeout_seconds = max(20, min(_env_int("MANAGER_GATEWAY_START_TIMEOUT_SECONDS", 60), 180))
+
+    if not _wait_for_port(SERVICE_PORT, timeout_seconds):
+        mode = "run mode fallback" if used_fallback else "service mode"
+        raise CommandError(f"Service start timeout ({timeout_seconds}s) in {mode}, please check logs")
+
     pid = cmd_get_service_status({}).get("pid")
+    if used_fallback:
+        return f"Service started in run mode, PID: {pid or started_pid}"
     return f"Service started, PID: {pid}"
 
 
@@ -869,8 +946,25 @@ def cmd_stop_service(_: dict[str, Any]) -> str:
         except CommandError:
             pass
 
+    # Fallback for gateway run mode (no system service manager).
+    if cmd_get_service_status({})["running"]:
+        for pid in _find_port_pids(SERVICE_PORT):
+            try:
+                proc = psutil.Process(pid)
+                proc.terminate()
+                try:
+                    proc.wait(timeout=3)
+                except psutil.TimeoutExpired:
+                    proc.kill()
+            except Exception:
+                continue
+
     if cmd_get_service_status({})["running"]:
         raise CommandError("Unable to stop service")
+
+    # Give the gateway a moment to settle so UI status doesn't bounce.
+    if not _wait_for_port_closed(SERVICE_PORT, 20):
+        raise CommandError("Service is still closing; please try again")
 
     return "Service stopped"
 
@@ -1733,6 +1827,15 @@ def cmd_save_web_config(payload: dict[str, Any]) -> str:
 
 def cmd_run_doctor(_: dict[str, Any]) -> list[dict[str, Any]]:
     env = cmd_check_environment({})
+    gateway_active = _check_port_open(SERVICE_PORT)
+    gateway_suggestion = None
+    if not gateway_active:
+        gateway_suggestion = (
+            "Start OpenClaw gateway service"
+            if _supports_gateway_service_install()
+            else "Start OpenClaw gateway (run mode)"
+        )
+
     checks = [
         {
             "name": "Node.js",
@@ -1760,9 +1863,9 @@ def cmd_run_doctor(_: dict[str, Any]) -> list[dict[str, Any]]:
         },
         {
             "name": "Gateway Port",
-            "passed": _check_port_open(SERVICE_PORT),
-            "message": f"Port {SERVICE_PORT} {'is active' if _check_port_open(SERVICE_PORT) else 'is not active'}",
-            "suggestion": None if _check_port_open(SERVICE_PORT) else "Start OpenClaw gateway service",
+            "passed": gateway_active,
+            "message": f"Port {SERVICE_PORT} {'is active' if gateway_active else 'is not active'}",
+            "suggestion": gateway_suggestion,
         },
     ]
     return checks
