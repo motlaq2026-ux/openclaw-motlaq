@@ -12,6 +12,7 @@ import socket
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -95,18 +96,45 @@ ALLOWED_PERSONALITY_FILES = {"AGENTS.md", "SOUL.md", "TOOLS.md"}
 
 OFFICIAL_PROVIDERS = [
     {
+        "id": "anthropic",
+        "name": "Anthropic Claude",
+        "icon": "🟣",
+        "default_base_url": "https://api.anthropic.com",
+        "api_type": "anthropic-messages",
+        "requires_api_key": True,
+        "docs_url": "https://docs.anthropic.com/en/docs/about-claude/models/overview",
+        "suggested_models": [
+            {
+                "id": "claude-sonnet-4-5-20250929",
+                "name": "Claude Sonnet 4.5",
+                "description": "Balanced quality and speed",
+                "context_window": 200000,
+                "max_tokens": 8192,
+                "recommended": True,
+            },
+            {
+                "id": "claude-opus-4-5-20251101",
+                "name": "Claude Opus 4.5",
+                "description": "Highest quality reasoning",
+                "context_window": 200000,
+                "max_tokens": 8192,
+                "recommended": False,
+            },
+        ],
+    },
+    {
         "id": "openai",
         "name": "OpenAI",
-        "icon": "🤖",
+        "icon": "🟢",
         "default_base_url": "https://api.openai.com/v1",
         "api_type": "openai-completions",
         "requires_api_key": True,
-        "docs_url": "https://platform.openai.com/docs",
+        "docs_url": "https://platform.openai.com/docs/api-reference/models",
         "suggested_models": [
             {
                 "id": "gpt-4o",
                 "name": "GPT-4o",
-                "description": "Multimodal flagship model",
+                "description": "Flagship multimodal model",
                 "context_window": 128000,
                 "max_tokens": 16384,
                 "recommended": True,
@@ -122,27 +150,27 @@ OFFICIAL_PROVIDERS = [
         ],
     },
     {
-        "id": "anthropic",
-        "name": "Anthropic Claude",
-        "icon": "🟣",
-        "default_base_url": "https://api.anthropic.com",
-        "api_type": "anthropic-messages",
+        "id": "groq",
+        "name": "Groq",
+        "icon": "⚡",
+        "default_base_url": "https://api.groq.com/openai/v1",
+        "api_type": "openai-completions",
         "requires_api_key": True,
-        "docs_url": "https://docs.anthropic.com",
+        "docs_url": "https://console.groq.com/docs/openai",
         "suggested_models": [
             {
-                "id": "claude-sonnet-4-5",
-                "name": "Claude Sonnet 4.5",
-                "description": "Balanced quality and speed",
-                "context_window": 200000,
+                "id": "llama-3.3-70b-versatile",
+                "name": "Llama 3.3 70B Versatile",
+                "description": "High quality general model",
+                "context_window": 131072,
                 "max_tokens": 8192,
                 "recommended": True,
             },
             {
-                "id": "claude-opus-4-5",
-                "name": "Claude Opus 4.5",
-                "description": "Highest quality reasoning",
-                "context_window": 200000,
+                "id": "llama-3.1-8b-instant",
+                "name": "Llama 3.1 8B Instant",
+                "description": "Very fast and low cost",
+                "context_window": 131072,
                 "max_tokens": 8192,
                 "recommended": False,
             },
@@ -155,7 +183,7 @@ OFFICIAL_PROVIDERS = [
         "default_base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
         "api_type": "openai-completions",
         "requires_api_key": True,
-        "docs_url": "https://ai.google.dev",
+        "docs_url": "https://ai.google.dev/gemini-api/docs/openai",
         "suggested_models": [
             {
                 "id": "gemini-2.0-flash",
@@ -178,7 +206,7 @@ OFFICIAL_PROVIDERS = [
     {
         "id": "deepseek",
         "name": "DeepSeek",
-        "icon": "🧠",
+        "icon": "🔵",
         "default_base_url": "https://api.deepseek.com",
         "api_type": "openai-completions",
         "requires_api_key": True,
@@ -203,25 +231,215 @@ OFFICIAL_PROVIDERS = [
         ],
     },
     {
+        "id": "moonshot",
+        "name": "Moonshot / Kimi",
+        "icon": "🌙",
+        "default_base_url": "https://api.moonshot.cn/v1",
+        "api_type": "openai-completions",
+        "requires_api_key": True,
+        "docs_url": "https://platform.moonshot.cn/docs",
+        "suggested_models": [
+            {
+                "id": "kimi-k2-0905-preview",
+                "name": "Kimi K2 Preview",
+                "description": "Long-context flagship model",
+                "context_window": 200000,
+                "max_tokens": 8192,
+                "recommended": True,
+            }
+        ],
+    },
+    {
+        "id": "qwen",
+        "name": "Qwen",
+        "icon": "🔮",
+        "default_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "api_type": "openai-completions",
+        "requires_api_key": True,
+        "docs_url": "https://www.alibabacloud.com/help/en/model-studio/compatibility-of-openai-with-dashscope",
+        "suggested_models": [
+            {
+                "id": "qwen-max",
+                "name": "Qwen Max",
+                "description": "Most powerful general model",
+                "context_window": 128000,
+                "max_tokens": 8192,
+                "recommended": True,
+            },
+            {
+                "id": "qwen-plus",
+                "name": "Qwen Plus",
+                "description": "Balanced quality and cost",
+                "context_window": 128000,
+                "max_tokens": 8192,
+                "recommended": False,
+            },
+        ],
+    },
+    {
+        "id": "glm",
+        "name": "GLM (Zhipu)",
+        "icon": "🔷",
+        "default_base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "api_type": "openai-completions",
+        "requires_api_key": True,
+        "docs_url": "https://docs.bigmodel.cn",
+        "suggested_models": [
+            {
+                "id": "glm-4",
+                "name": "GLM-4",
+                "description": "Flagship GLM model",
+                "context_window": 128000,
+                "max_tokens": 8192,
+                "recommended": True,
+            }
+        ],
+    },
+    {
+        "id": "minimax",
+        "name": "MiniMax",
+        "icon": "🟡",
+        "default_base_url": "https://api.minimax.io/anthropic",
+        "api_type": "anthropic-messages",
+        "requires_api_key": True,
+        "docs_url": "https://www.minimax.io/platform/document",
+        "suggested_models": [
+            {
+                "id": "minimax-m2.5",
+                "name": "MiniMax M2.5",
+                "description": "Anthropic-compatible endpoint",
+                "context_window": 200000,
+                "max_tokens": 8192,
+                "recommended": True,
+            }
+        ],
+    },
+    {
+        "id": "openrouter",
+        "name": "OpenRouter",
+        "icon": "🔄",
+        "default_base_url": "https://openrouter.ai/api/v1",
+        "api_type": "openai-completions",
+        "requires_api_key": True,
+        "docs_url": "https://openrouter.ai/docs/api-reference/overview",
+        "suggested_models": [
+            {
+                "id": "openai/gpt-4o-mini",
+                "name": "GPT-4o Mini (via OpenRouter)",
+                "description": "OpenRouter routed OpenAI model",
+                "context_window": 128000,
+                "max_tokens": 8192,
+                "recommended": True,
+            }
+        ],
+    },
+    {
+        "id": "together",
+        "name": "Together AI",
+        "icon": "🧩",
+        "default_base_url": "https://api.together.xyz/v1",
+        "api_type": "openai-completions",
+        "requires_api_key": True,
+        "docs_url": "https://docs.together.ai/docs/openai-api-compatibility",
+        "suggested_models": [
+            {
+                "id": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                "name": "Llama 3.3 70B Turbo",
+                "description": "Fast open-source inference",
+                "context_window": 131072,
+                "max_tokens": 8192,
+                "recommended": True,
+            }
+        ],
+    },
+    {
+        "id": "fireworks",
+        "name": "Fireworks AI",
+        "icon": "🎆",
+        "default_base_url": "https://api.fireworks.ai/inference/v1",
+        "api_type": "openai-completions",
+        "requires_api_key": True,
+        "docs_url": "https://docs.fireworks.ai/guides/openai-compatibility",
+        "suggested_models": [
+            {
+                "id": "accounts/fireworks/models/llama-v3p1-70b-instruct",
+                "name": "Llama 3.1 70B Instruct",
+                "description": "OpenAI-compatible endpoint on Fireworks",
+                "context_window": 131072,
+                "max_tokens": 8192,
+                "recommended": True,
+            }
+        ],
+    },
+    {
+        "id": "xai",
+        "name": "xAI",
+        "icon": "❎",
+        "default_base_url": "https://api.x.ai/v1",
+        "api_type": "openai-completions",
+        "requires_api_key": True,
+        "docs_url": "https://docs.x.ai/docs/api-reference",
+        "suggested_models": [
+            {
+                "id": "grok-3",
+                "name": "Grok 3",
+                "description": "General reasoning model",
+                "context_window": 131072,
+                "max_tokens": 8192,
+                "recommended": True,
+            },
+            {
+                "id": "grok-3-mini",
+                "name": "Grok 3 Mini",
+                "description": "Lower-latency Grok model",
+                "context_window": 131072,
+                "max_tokens": 8192,
+                "recommended": False,
+            },
+        ],
+    },
+    {
+        "id": "venice",
+        "name": "Venice AI",
+        "icon": "🏛️",
+        "default_base_url": "https://api.venice.ai/api/v1",
+        "api_type": "openai-completions",
+        "requires_api_key": True,
+        "docs_url": "https://docs.venice.ai",
+        "suggested_models": [
+            {
+                "id": "llama-3.3-70b",
+                "name": "Llama 3.3 70B",
+                "description": "Privacy-focused hosted model",
+                "context_window": 128000,
+                "max_tokens": 8192,
+                "recommended": True,
+            }
+        ],
+    },
+    {
         "id": "ollama",
-        "name": "Ollama",
+        "name": "Ollama (Local)",
         "icon": "🦙",
         "default_base_url": "http://localhost:11434/v1",
         "api_type": "openai-completions",
         "requires_api_key": False,
-        "docs_url": "https://ollama.com",
+        "docs_url": "https://ollama.com/blog/openai-compatibility",
         "suggested_models": [
             {
                 "id": "llama3.1:8b",
                 "name": "Llama 3.1 8B",
-                "description": "Local model",
+                "description": "Run locally with Ollama",
                 "context_window": 8192,
-                "max_tokens": 2048,
+                "max_tokens": 4096,
                 "recommended": True,
             }
         ],
     },
 ]
+
+SUPPORTED_API_TYPES = {"openai-completions", "anthropic-messages"}
+DEFAULT_API_TYPE = "openai-completions"
 
 
 class CommandError(RuntimeError):
@@ -558,6 +776,159 @@ def _masked_api_key(value: str | None) -> str | None:
     if len(value) <= 8:
         return "****"
     return f"{value[:4]}...{value[-4:]}"
+
+
+def _normalize_api_type(value: Any) -> str:
+    api_type = str(value or DEFAULT_API_TYPE).strip().lower()
+    if api_type not in SUPPORTED_API_TYPES:
+        allowed = ", ".join(sorted(SUPPORTED_API_TYPES))
+        raise CommandError(f"Unsupported API type: {api_type}. Allowed: {allowed}")
+    return api_type
+
+
+def _normalize_provider_name(value: Any) -> str:
+    provider_name = str(value or "").strip()
+    if not provider_name:
+        raise CommandError("Provider Name is required")
+    if len(provider_name) > 64:
+        raise CommandError("Provider Name is too long (max 64 characters)")
+    if "/" in provider_name:
+        raise CommandError("Provider Name cannot contain '/'")
+    return provider_name
+
+
+def _normalize_base_url(value: Any) -> str:
+    base_url = str(value or "").strip().rstrip("/")
+    if not base_url:
+        raise CommandError("API URL is required")
+
+    parsed = urllib.parse.urlparse(base_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise CommandError("API URL must start with http:// or https:// and include a host")
+    return base_url
+
+
+def _normalize_model_id(value: Any) -> str:
+    model_id = str(value or "").strip()
+    if not model_id:
+        return ""
+    if len(model_id) > 200:
+        raise CommandError(f"Model ID is too long: {model_id[:40]}...")
+    return model_id
+
+
+def _find_official_provider(provider_name: str) -> dict[str, Any] | None:
+    target = provider_name.lower()
+    for provider in OFFICIAL_PROVIDERS:
+        provider_id = str(provider.get("id") or "").strip().lower()
+        if provider_id == target:
+            return provider
+    return None
+
+
+def _is_local_base_url(base_url: str) -> bool:
+    parsed = urllib.parse.urlparse(base_url)
+    host = (parsed.hostname or "").lower()
+    return host in {"localhost", "127.0.0.1", "::1"} or host.endswith(".local")
+
+
+def _provider_requires_api_key(provider_name: str, base_url: str) -> bool:
+    official = _find_official_provider(provider_name)
+    if official is not None:
+        return bool(official.get("requires_api_key", True))
+    if provider_name.lower() == "ollama" or _is_local_base_url(base_url):
+        return False
+    return True
+
+
+def _append_path(base_url: str, path: str) -> str:
+    return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
+
+
+def _candidate_model_endpoints(base_url: str, api_type: str) -> list[str]:
+    candidates: list[str] = []
+    normalized = base_url.rstrip("/")
+
+    def add(url: str) -> None:
+        if url not in candidates:
+            candidates.append(url)
+
+    if normalized.endswith("/models"):
+        add(normalized)
+        return candidates
+
+    if api_type == "anthropic-messages":
+        add(_append_path(normalized, "models"))
+        if not normalized.endswith("/v1"):
+            add(_append_path(_append_path(normalized, "v1"), "models"))
+        return candidates
+
+    add(_append_path(normalized, "models"))
+    for suffix in ["/chat/completions", "/completions", "/responses"]:
+        if normalized.endswith(suffix):
+            trimmed = normalized[: -len(suffix)].rstrip("/")
+            if trimmed:
+                add(_append_path(trimmed, "models"))
+    return candidates
+
+
+def _read_json_response(url: str, headers: dict[str, str], timeout_seconds: int = 12) -> Any:
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+            status = getattr(resp, "status", 200)
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        reason = body.strip() or str(exc)
+        raise CommandError(f"HTTP {exc.code}: {reason[:200]}") from exc
+    except urllib.error.URLError as exc:
+        reason = str(getattr(exc, "reason", "") or exc)
+        raise CommandError(f"Connection failed: {reason}") from exc
+
+    if status >= 400:
+        raise CommandError(f"HTTP {status}")
+    try:
+        return json.loads(body) if body else {}
+    except Exception as exc:
+        raise CommandError("Provider returned non-JSON response") from exc
+
+
+def _extract_discovered_models(payload: Any) -> list[dict[str, str]]:
+    raw_items: list[Any] = []
+    if isinstance(payload, list):
+        raw_items = payload
+    elif isinstance(payload, dict):
+        for key in ("data", "models", "result", "items"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                raw_items = value
+                break
+
+    models: list[dict[str, str]] = []
+    seen: set[str] = set()
+
+    for item in raw_items:
+        model_id = ""
+        model_name = ""
+        if isinstance(item, str):
+            try:
+                model_id = _normalize_model_id(item)
+            except CommandError:
+                continue
+            model_name = model_id
+        elif isinstance(item, dict):
+            try:
+                model_id = _normalize_model_id(item.get("id") or item.get("model") or item.get("name"))
+            except CommandError:
+                continue
+            model_name = str(item.get("display_name") or item.get("name") or model_id).strip() or model_id
+        if not model_id or model_id in seen:
+            continue
+        seen.add(model_id)
+        models.append({"id": model_id, "name": model_name})
+
+    return models
 
 
 def _build_ai_overview(config: dict[str, Any]) -> dict[str, Any]:
@@ -1132,14 +1503,92 @@ def cmd_get_ai_config(_: dict[str, Any]) -> dict[str, Any]:
     return _build_ai_overview(config)
 
 
+def cmd_discover_provider_models(payload: dict[str, Any]) -> dict[str, Any]:
+    base_url = _normalize_base_url(_get_required(payload, "baseUrl"))
+    api_type = _normalize_api_type(payload.get("apiType"))
+    api_key = str(payload.get("apiKey") or "").strip()
+
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "openclaw-manager/1.0",
+    }
+    if api_type == "anthropic-messages":
+        if api_key:
+            headers["x-api-key"] = api_key
+        headers["anthropic-version"] = str(payload.get("anthropicVersion") or "2023-06-01").strip()
+    else:
+        if api_key:
+            # Some "OpenAI compatible" endpoints expect Bearer auth, while
+            # others (for example Azure style gateways) use api-key.
+            headers["Authorization"] = f"Bearer {api_key}"
+            headers["api-key"] = api_key
+
+    endpoints = _candidate_model_endpoints(base_url, api_type)
+    errors: list[str] = []
+
+    for endpoint in endpoints:
+        try:
+            response = _read_json_response(endpoint, headers=headers, timeout_seconds=12)
+            models = _extract_discovered_models(response)
+            if models:
+                return {
+                    "endpoint": endpoint,
+                    "count": len(models),
+                    "models": models[:200],
+                }
+            errors.append(f"{endpoint}: no models returned")
+        except CommandError as exc:
+            errors.append(f"{endpoint}: {exc}")
+
+    hint = errors[-1] if errors else "No endpoint candidates were generated"
+    raise CommandError(
+        f"Failed to auto-discover models. {hint}. You can still add model IDs manually."
+    )
+
+
 def cmd_save_provider(payload: dict[str, Any]) -> str:
-    provider_name = str(_get_required(payload, "providerName"))
-    base_url = str(_get_required(payload, "baseUrl"))
+    provider_name = _normalize_provider_name(_get_required(payload, "providerName"))
+    base_url = _normalize_base_url(_get_required(payload, "baseUrl"))
     api_key = payload.get("apiKey")
-    api_type = str(payload.get("apiType") or "openai-completions")
+    api_type = _normalize_api_type(payload.get("apiType"))
     models = payload.get("models") or []
-    if not isinstance(models, list) or not models:
-        raise CommandError("At least one model is required")
+    if not isinstance(models, list):
+        raise CommandError("models must be a list")
+
+    normalized_models: list[dict[str, Any]] = []
+    seen_model_ids: set[str] = set()
+    for model in models:
+        if not isinstance(model, dict):
+            continue
+        model_id = _normalize_model_id(model.get("id"))
+        if not model_id or model_id in seen_model_ids:
+            continue
+        seen_model_ids.add(model_id)
+        model_api_type = _normalize_api_type(model.get("api") or api_type)
+
+        context_window = model.get("context_window")
+        max_tokens = model.get("max_tokens")
+        try:
+            context_window = int(context_window) if context_window is not None else None
+        except Exception:
+            context_window = None
+        try:
+            max_tokens = int(max_tokens) if max_tokens is not None else None
+        except Exception:
+            max_tokens = None
+
+        normalized_models.append(
+            {
+                "id": model_id,
+                "name": str(model.get("name") or model_id),
+                "api_type": model_api_type,
+                "context_window": context_window,
+                "max_tokens": max_tokens,
+            }
+        )
+
+    if not normalized_models:
+        raise CommandError("At least one valid model is required")
 
     config = _load_openclaw_config()
     providers = config.setdefault("providers", [])
@@ -1155,10 +1604,16 @@ def cmd_save_provider(payload: dict[str, Any]) -> str:
         existing_provider = {"name": provider_name}
         providers.append(existing_provider)
 
+    existing_provider["name"] = provider_name
     existing_provider["base_url"] = base_url
     existing_provider["api_type"] = api_type
-    if api_key:
-        existing_provider["api_key"] = api_key
+    if isinstance(api_key, str) and api_key.strip():
+        existing_provider["api_key"] = api_key.strip()
+    elif payload.get("clearApiKey") is True:
+        existing_provider.pop("api_key", None)
+
+    if _provider_requires_api_key(provider_name, base_url) and not existing_provider.get("api_key"):
+        _log(f"Warning [save_provider]: {provider_name} usually requires an API key, but none is configured")
 
     # Preserve previous primary model information for this provider
     previous_primary_ids = {
@@ -1170,16 +1625,14 @@ def cmd_save_provider(payload: dict[str, Any]) -> str:
     all_models[:] = [m for m in all_models if m.get("provider") != provider_name]
 
     new_entries = []
-    for model in models:
-        model_id = model.get("id")
-        if not model_id:
-            continue
+    for model in normalized_models:
+        model_id = model["id"]
         entry = {
             "provider": provider_name,
             "model_id": model_id,
             "id": model_id,
             "name": model.get("name") or model_id,
-            "api_type": model.get("api") or api_type,
+            "api_type": model.get("api_type") or api_type,
             "context_window": model.get("context_window"),
             "max_tokens": model.get("max_tokens"),
             "is_primary": model_id in previous_primary_ids,
@@ -1190,18 +1643,37 @@ def cmd_save_provider(payload: dict[str, Any]) -> str:
         new_entries[0]["is_primary"] = True
 
     all_models.extend(new_entries)
+
+    # Keep available_models in sync with provider/model entries.
+    existing_available = [m for m in config.get("available_models", []) if isinstance(m, str)]
+    prefix = f"{provider_name}/"
+    existing_available = [m for m in existing_available if not m.startswith(prefix)]
+    existing_available.extend(f"{provider_name}/{m['model_id']}" for m in new_entries)
+    deduped_available = list(dict.fromkeys(existing_available))
+    config["available_models"] = deduped_available
+
     _save_openclaw_config(config)
     return f"Provider saved: {provider_name}"
 
 
 def cmd_delete_provider(payload: dict[str, Any]) -> str:
-    provider_name = str(_get_required(payload, "providerName"))
+    provider_name = _normalize_provider_name(_get_required(payload, "providerName"))
     config = _load_openclaw_config()
     providers = config.get("providers", [])
     models = config.get("models", [])
 
     config["providers"] = [p for p in providers if p.get("name") != provider_name]
     config["models"] = [m for m in models if m.get("provider") != provider_name]
+
+    available = [m for m in config.get("available_models", []) if isinstance(m, str)]
+    prefix = f"{provider_name}/"
+    config["available_models"] = [m for m in available if not m.startswith(prefix)]
+
+    # Guarantee there is always exactly one primary model when models exist.
+    remaining_models = config["models"]
+    if remaining_models and not any(bool(m.get("is_primary")) for m in remaining_models):
+        remaining_models[0]["is_primary"] = True
+
     _save_openclaw_config(config)
     return f"Provider deleted: {provider_name}"
 
@@ -1925,10 +2397,12 @@ def cmd_test_ai_connection(_: dict[str, Any]) -> dict[str, Any]:
             "latency_ms": None,
         }
 
-    if not selected_provider.get("has_api_key") and selected_provider.get("name") != "ollama":
+    provider_name = str(selected_provider.get("name") or "")
+    base_url = str(selected_provider.get("base_url") or "")
+    if _provider_requires_api_key(provider_name, base_url) and not selected_provider.get("has_api_key"):
         return {
             "success": False,
-            "provider": selected_provider.get("name", ""),
+            "provider": provider_name,
             "model": selected_model.get("id", ""),
             "response": None,
             "error": "Provider API key is missing",
@@ -2138,6 +2612,7 @@ COMMANDS: dict[str, Callable[[dict[str, Any]], Any]] = {
     # AI config
     "get_official_providers": cmd_get_official_providers,
     "get_ai_config": cmd_get_ai_config,
+    "discover_provider_models": cmd_discover_provider_models,
     "save_provider": cmd_save_provider,
     "delete_provider": cmd_delete_provider,
     "set_primary_model": cmd_set_primary_model,

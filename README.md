@@ -40,3 +40,4 @@ If `MANAGER_API_TOKEN` is enabled, the web UI will prompt once for the token and
 
 - The frontend keeps original command names and calls backend through an invoke shim.
 - Desktop-only operations are re-implemented with container-safe behavior.
+- AI provider config supports broad presets plus custom OpenAI/Anthropic-compatible endpoints with model auto-discovery.

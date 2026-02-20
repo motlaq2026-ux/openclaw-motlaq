@@ -20,6 +20,7 @@ import {
   CheckCircle,
   XCircle,
   Pencil,
+  RefreshCw,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { aiLogger } from '../../lib/logger';
@@ -81,6 +82,17 @@ interface ModelConfig {
   cost: { input: number; output: number; cache_read: number; cache_write: number } | null;
 }
 
+interface DiscoveredModel {
+  id: string;
+  name: string;
+}
+
+interface DiscoverModelsResult {
+  endpoint: string;
+  count: number;
+  models: DiscoveredModel[];
+}
+
 interface AITestResult {
   success: boolean;
   provider: string;
@@ -134,6 +146,17 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [showCustomUrlWarning, setShowCustomUrlWarning] = useState(false);
+  const [discoveringModels, setDiscoveringModels] = useState(false);
+  const [discoveredModels, setDiscoveredModels] = useState<DiscoveredModel[]>([]);
+  const [discoveredEndpoint, setDiscoveredEndpoint] = useState<string | null>(null);
+
+  const apiKeyOptional = (() => {
+    if (selectedOfficial) {
+      return !selectedOfficial.requires_api_key;
+    }
+    const localUrl = /localhost|127\.0\.0\.1|\[::1\]/i.test(baseUrl);
+    return providerName.trim().toLowerCase() === 'ollama' || localUrl;
+  })();
 
   // Check if using official Provider name with custom URL
   const isCustomUrlWithOfficialName = (() => {
@@ -154,6 +177,8 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
     setSelectedModels(recommended.length > 0 ? recommended : [provider.suggested_models[0]?.id].filter(Boolean));
     setFormError(null);
     setShowCustomUrlWarning(false);
+    setDiscoveredModels([]);
+    setDiscoveredEndpoint(null);
     setStep('configure');
   };
 
@@ -165,6 +190,8 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
     setSelectedModels([]);
     setFormError(null);
     setShowCustomUrlWarning(false);
+    setDiscoveredModels([]);
+    setDiscoveredEndpoint(null);
     setStep('configure');
   };
 
@@ -178,9 +205,10 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
   };
 
   const addCustomModel = () => {
-    if (customModelId && !selectedModels.includes(customModelId)) {
+    const modelId = customModelId.trim();
+    if (modelId && !selectedModels.includes(modelId)) {
       setFormError(null);
-      setSelectedModels(prev => [...prev, customModelId]);
+      setSelectedModels(prev => [...prev, modelId]);
       setCustomModelId('');
     }
   };
@@ -199,11 +227,63 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
     }
   };
 
+  const handleDiscoverModels = async () => {
+    setFormError(null);
+    setDiscoveringModels(true);
+    setDiscoveredEndpoint(null);
+    try {
+      const result = await invoke<DiscoverModelsResult>('discover_provider_models', {
+        baseUrl: baseUrl.trim(),
+        apiKey: apiKey.trim() || null,
+        apiType,
+      });
+
+      const discovered = (result.models || []).filter(m => m.id && m.id.trim());
+      setDiscoveredModels(discovered);
+      setDiscoveredEndpoint(result.endpoint || null);
+
+      if (discovered.length === 0) {
+        setFormError('No models returned from this endpoint. You can still add model IDs manually.');
+      } else {
+        setSelectedModels(prev => {
+          if (prev.length > 0) {
+            return prev;
+          }
+          return [discovered[0].id];
+        });
+      }
+    } catch (e) {
+      aiLogger.warn('Failed to discover models', e);
+      setDiscoveredModels([]);
+      setFormError('Model discovery failed: ' + String(e));
+    } finally {
+      setDiscoveringModels(false);
+    }
+  };
+
   const handleSave = async (forceOverride: boolean = false) => {
     setFormError(null);
-    
-    if (!providerName || !baseUrl || selectedModels.length === 0) {
-      setFormError('Please fill in complete Provider information and select at least one model');
+
+    const normalizedProviderName = providerName.trim();
+    const normalizedBaseUrl = baseUrl.trim();
+    const pendingModel = customModelId.trim();
+    const finalSelectedModels =
+      pendingModel && !selectedModels.includes(pendingModel)
+        ? [...selectedModels, pendingModel]
+        : selectedModels;
+
+    if (!normalizedProviderName || !normalizedBaseUrl || finalSelectedModels.length === 0) {
+      setFormError('Please complete provider fields and select at least one model');
+      return;
+    }
+
+    if (normalizedProviderName.includes('/')) {
+      setFormError("Provider Name cannot contain '/'");
+      return;
+    }
+
+    if (!/^https?:\/\//i.test(normalizedBaseUrl)) {
+      setFormError('API URL must start with http:// or https://');
       return;
     }
 
@@ -217,13 +297,14 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
     setShowCustomUrlWarning(false);
     try {
       // Build model configuration
-      const models: ModelConfig[] = selectedModels.map(modelId => {
+      const models: ModelConfig[] = finalSelectedModels.map(modelId => {
         const suggested = selectedOfficial?.suggested_models.find(m => m.id === modelId);
+        const discovered = discoveredModels.find(m => m.id === modelId);
         // In edit mode, preserve original model configuration
         const existingModel = editingProvider?.models.find(m => m.id === modelId);
         return {
           id: modelId,
-          name: suggested?.name || existingModel?.name || modelId,
+          name: suggested?.name || discovered?.name || existingModel?.name || modelId,
           api: apiType,
           input: ['text', 'image'],
           context_window: suggested?.context_window || existingModel?.context_window || 200000,
@@ -234,14 +315,14 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
       });
 
       await invoke('save_provider', {
-        providerName,
-        baseUrl,
-        apiKey: apiKey || null,
+        providerName: normalizedProviderName,
+        baseUrl: normalizedBaseUrl,
+        apiKey: apiKey.trim() || null,
         apiType,
         models,
       });
 
-      aiLogger.info(`✓ Provider ${providerName} ${isEditing ? 'updated' : 'saved'}`);
+      aiLogger.info(`✓ Provider ${normalizedProviderName} ${isEditing ? 'updated' : 'saved'}`);
       onSave();
       onClose();
     } catch (e) {
@@ -251,6 +332,11 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    setDiscoveredModels([]);
+    setDiscoveredEndpoint(null);
+  }, [baseUrl, apiType]);
 
   return (
     <motion.div
@@ -321,7 +407,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                     className="w-full flex items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-dark-500 hover:border-claw-500/50 text-gray-400 hover:text-white transition-all"
                   >
                     <Settings2 size={18} />
-                    <span>Custom Provider (OpenAI/Anthropic API Compatible)</span>
+                    <span>Custom Provider (Any OpenAI/Anthropic Compatible API)</span>
                   </button>
                 </div>
               </motion.div>
@@ -378,7 +464,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                     type="text"
                     value={baseUrl}
                     onChange={e => { setFormError(null); setBaseUrl(e.target.value); }}
-                    placeholder="https://api.example.com/v1"
+                    placeholder={selectedOfficial?.default_base_url || "https://api.example.com/v1"}
                     className="input-base"
                   />
                 </div>
@@ -387,7 +473,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                 <div>
                   <label className="block text-sm text-gray-400 mb-2">
                     API Key
-                    {!selectedOfficial?.requires_api_key && (
+                    {apiKeyOptional && (
                       <span className="text-gray-600 text-xs ml-2">(Optional)</span>
                     )}
                   </label>
@@ -441,12 +527,28 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
 
                 {/* Model Selection */}
               <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                    Select Models
-                    <span className="text-gray-600 text-xs ml-2">
-                      ({selectedModels.length} selected)
-                    </span>
-                  </label>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <label className="block text-sm text-gray-400">
+                      Select Models
+                      <span className="text-gray-600 text-xs ml-2">
+                        ({selectedModels.length} selected)
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleDiscoverModels}
+                      disabled={discoveringModels || !baseUrl.trim()}
+                      className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1"
+                      title="Call provider /models endpoint and import model list"
+                    >
+                      {discoveringModels ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={12} />
+                      )}
+                      Discover from API
+                    </button>
+                  </div>
                   
                   {/* Preset Models */}
                   {selectedOfficial && (
@@ -484,6 +586,47 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                     </div>
                   )}
 
+                  {/* Auto-discovered Models */}
+                  {discoveredModels.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
+                        <span>Discovered from API ({discoveredModels.length})</span>
+                        {discoveredEndpoint && (
+                          <code className="max-w-[55%] truncate text-[11px] text-gray-500">
+                            {discoveredEndpoint}
+                          </code>
+                        )}
+                      </div>
+                      <div className="max-h-44 overflow-y-auto space-y-2 pr-1">
+                        {discoveredModels.map(model => (
+                          <button
+                            key={model.id}
+                            onClick={() => toggleModel(model.id)}
+                            className={clsx(
+                              'w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left',
+                              selectedModels.includes(model.id)
+                                ? 'bg-claw-500/20 border-claw-500'
+                                : 'bg-dark-700 border-dark-500 hover:border-dark-400'
+                            )}
+                          >
+                            <div className="min-w-0">
+                              <p className={clsx(
+                                'text-sm font-medium truncate',
+                                selectedModels.includes(model.id) ? 'text-white' : 'text-gray-300'
+                              )}>
+                                {model.name}
+                              </p>
+                              <p className="text-xs text-gray-500 truncate">{model.id}</p>
+                            </div>
+                            {selectedModels.includes(model.id) && (
+                              <Check size={16} className="text-claw-400 shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Custom Model Input */}
                   <div className="flex gap-2">
                   <input
@@ -496,7 +639,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
                     />
                     <button
                       onClick={addCustomModel}
-                      disabled={!customModelId}
+                      disabled={!customModelId.trim()}
                       className="btn-secondary px-4"
                     >
                       <Plus size={16} />
@@ -612,7 +755,7 @@ function ProviderDialog({ officialProviders, onClose, onSave, editingProvider }:
             {step === 'configure' && !showCustomUrlWarning && (
               <button
                 onClick={() => handleSave()}
-                disabled={saving || !providerName || !baseUrl || selectedModels.length === 0}
+                disabled={saving || !providerName.trim() || !baseUrl.trim() || (selectedModels.length === 0 && !customModelId.trim())}
                 className="btn-primary flex items-center gap-2"
               >
                 {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
@@ -1124,7 +1267,8 @@ export function AIConfig() {
           <h4 className="text-sm font-medium text-gray-400 mb-2">Configuration Notes</h4>
           <ul className="text-sm text-gray-500 space-y-1">
             <li>• Provider configuration is saved in <code className="text-claw-400">~/.openclaw/openclaw.json</code></li>
-            <li>• Supports official Providers (Anthropic, OpenAI, Kimi, etc.) and custom OpenAI/Anthropic compatible APIs</li>
+            <li>• Supports many built-in provider presets plus any custom OpenAI/Anthropic compatible API</li>
+            <li>• Use "Discover from API" to auto-load models from the provider endpoint</li>
             <li>• The primary model is used for Agent's default inference and can be switched at any time</li>
             <li>• Restart the service for configuration changes to take effect</li>
           </ul>

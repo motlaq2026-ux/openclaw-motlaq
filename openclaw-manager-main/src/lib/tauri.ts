@@ -108,6 +108,17 @@ export interface AIConfigOverview {
   available_models: string[];
 }
 
+export interface DiscoveredProviderModel {
+  id: string;
+  name: string;
+}
+
+export interface DiscoverProviderModelsResult {
+  endpoint: string;
+  count: number;
+  models: DiscoveredProviderModel[];
+}
+
 // Model configuration
 export interface ModelConfig {
   id: string;
@@ -190,6 +201,12 @@ export const api = {
   // AI Configuration (new version)
   getOfficialProviders: () => invokeWithLog<OfficialProvider[]>('get_official_providers'),
   getAIConfig: () => invokeWithLog<AIConfigOverview>('get_ai_config'),
+  discoverProviderModels: (baseUrl: string, apiType: string, apiKey?: string | null) =>
+    invokeWithLog<DiscoverProviderModelsResult>('discover_provider_models', {
+      baseUrl,
+      apiType,
+      apiKey: apiKey || null,
+    }),
   saveProvider: (
     providerName: string,
     baseUrl: string,
