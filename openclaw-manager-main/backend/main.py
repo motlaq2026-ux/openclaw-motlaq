@@ -1923,6 +1923,30 @@ def cmd_get_channels_config(_: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
+def _has_nonempty_credential(value: Any) -> bool:
+    return bool(str(value or "").strip())
+
+
+def _channel_has_credentials(channel_type: str, config: dict[str, Any]) -> bool:
+    if channel_type == "telegram":
+        if _has_nonempty_credential(config.get("botToken")):
+            return True
+
+        # In multi-account mode bot token may be stored in manager.json.
+        manager = _load_manager_config()
+        for account in manager.get("telegram_accounts", []):
+            if not isinstance(account, dict):
+                continue
+            if _has_nonempty_credential(account.get("bot_token")):
+                return True
+        return False
+
+    for key in ["botToken", "appId", "appKey", "token", "appSecret"]:
+        if _has_nonempty_credential(config.get(key)):
+            return True
+    return False
+
+
 def cmd_save_channel_config(payload: dict[str, Any]) -> str:
     channel = _get_required(payload, "channel")
     if not isinstance(channel, dict):
@@ -1935,11 +1959,24 @@ def cmd_save_channel_config(payload: dict[str, Any]) -> str:
 
     config = _load_openclaw_config()
     channels = config.setdefault("channels", {})
+
+    channel_config = channel.get("config", {}) or {}
+    if not isinstance(channel_config, dict):
+        raise CommandError("channel.config must be an object")
+
+    enabled_raw = channel.get("enabled")
+    enabled = bool(enabled_raw) if enabled_raw is not None else False
+    respect_enabled = bool(channel.get("respect_enabled", False))
+    # Backward compatibility for older frontend builds that unintentionally
+    # saved enabled=false even when credentials were provided.
+    if not enabled and not respect_enabled and _channel_has_credentials(str(channel_type), channel_config):
+        enabled = True
+
     channels[str(channel_id)] = {
         "id": str(channel_id),
         "channel_type": str(channel_type),
-        "enabled": bool(channel.get("enabled", False)),
-        "config": channel.get("config", {}) or {},
+        "enabled": enabled,
+        "config": channel_config,
     }
     _save_openclaw_config(config)
     return f"Channel saved: {channel_id}"
@@ -1992,6 +2029,29 @@ def cmd_save_telegram_account(payload: dict[str, Any]) -> str:
 
     manager["telegram_accounts"] = accounts
     _save_manager_config(manager)
+
+    # Sync Telegram token into openclaw.json for runtime compatibility.
+    token = str(account.get("bot_token") or "").strip()
+    if token:
+        openclaw = _load_openclaw_config()
+        channels = openclaw.setdefault("channels", {})
+        telegram = channels.setdefault(
+            "telegram",
+            {
+                "id": "telegram",
+                "channel_type": "telegram",
+                "enabled": False,
+                "config": {},
+            },
+        )
+        telegram_cfg = telegram.setdefault("config", {})
+        is_primary = bool(account.get("primary")) or str(account_id) == "default"
+        if is_primary or not _has_nonempty_credential(telegram_cfg.get("botToken")):
+            telegram_cfg["botToken"] = token
+        if not telegram.get("enabled"):
+            telegram["enabled"] = True
+        _save_openclaw_config(openclaw)
+
     return f"Telegram account saved: {account_id}"
 
 
@@ -2440,10 +2500,9 @@ def cmd_test_channel(payload: dict[str, Any]) -> dict[str, Any]:
         }
 
     config = channel.get("config", {})
-    has_credentials = any(
-        key in config and str(config.get(key) or "").strip()
-        for key in ["botToken", "appId", "appKey", "token", "appSecret"]
-    )
+    if not isinstance(config, dict):
+        config = {}
+    has_credentials = _channel_has_credentials(channel_type, config)
 
     return {
         "success": has_credentials,

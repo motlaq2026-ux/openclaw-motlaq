@@ -385,6 +385,8 @@ export function Channels() {
   const [loading, setLoading] = useState(true);
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [configForm, setConfigForm] = useState<Record<string, string>>({});
+  const [channelEnabled, setChannelEnabled] = useState(false);
+  const [channelEnabledDirty, setChannelEnabledDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
@@ -598,6 +600,23 @@ export function Channels() {
     }
   };
 
+  const hasRuntimeCredentials = (
+    channelType: string,
+    config: Record<string, unknown>,
+    accounts: TelegramAccountInfo[] = []
+  ) => {
+    const nonEmpty = (v: unknown) => String(v ?? '').trim().length > 0;
+
+    if (channelType === 'telegram') {
+      if (nonEmpty(config.botToken)) return true;
+      return accounts.some((acct) => nonEmpty(acct.bot_token));
+    }
+
+    return ['botToken', 'appId', 'appKey', 'token', 'appSecret'].some((key) =>
+      nonEmpty(config[key])
+    );
+  };
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -623,6 +642,9 @@ export function Channels() {
     const channel = list.find((c) => c.id === channelId);
 
     if (channel) {
+      setChannelEnabled(channel.enabled || hasRuntimeCredentials(channel.channel_type, channel.config));
+      setChannelEnabledDirty(false);
+
       const form: Record<string, string> = {};
       Object.entries(channel.config).forEach(([key, value]) => {
         // Handle boolean values
@@ -667,6 +689,8 @@ export function Channels() {
         fetchTelegramAccounts();
       }
     } else {
+      setChannelEnabled(false);
+      setChannelEnabledDirty(false);
       setConfigForm({});
     }
   };
@@ -675,6 +699,12 @@ export function Channels() {
     try {
       const accounts: TelegramAccountInfo[] = await invoke('get_telegram_accounts');
       setTelegramAccounts(accounts);
+      if (selectedChannel === 'telegram' && !channelEnabledDirty) {
+        const hasToken = accounts.some((acct) => String(acct.bot_token || '').trim().length > 0);
+        if (hasToken) {
+          setChannelEnabled(true);
+        }
+      }
     } catch (e) {
       console.error('Failed to fetch telegram accounts:', e);
     }
@@ -751,9 +781,14 @@ export function Channels() {
         config['groupAllowFrom'] = groupAllowFromUsers.map(id => /^-?\d+$/.test(id) ? Number(id) : id);
       }
 
+      const hasCredentials = hasRuntimeCredentials(channel.channel_type, config, telegramAccounts);
+      const effectiveEnabled = channelEnabledDirty ? channelEnabled : (channelEnabled || hasCredentials);
+
       await invoke('save_channel_config', {
         channel: {
           ...channel,
+          enabled: effectiveEnabled,
+          respect_enabled: true,
           config,
         },
       });
@@ -896,6 +931,37 @@ export function Channels() {
                     {currentInfo.helpText && (
                       <p className="text-xs text-gray-500">{currentInfo.helpText}</p>
                     )}
+                  </div>
+                  <div className="ml-auto flex items-center gap-2">
+                    <span
+                      className={clsx(
+                        'text-xs',
+                        channelEnabled ? 'text-green-400' : 'text-gray-500'
+                      )}
+                    >
+                      {channelEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChannelEnabled((v) => !v);
+                        setChannelEnabledDirty(true);
+                      }}
+                      className={clsx(
+                        'relative w-12 h-6 rounded-full transition-colors border',
+                        channelEnabled
+                          ? 'bg-green-500/25 border-green-500/50'
+                          : 'bg-dark-600 border-dark-500'
+                      )}
+                      title="Toggle channel enabled state"
+                    >
+                      <span
+                        className={clsx(
+                          'absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform',
+                          channelEnabled ? 'translate-x-6' : 'translate-x-0.5'
+                        )}
+                      />
+                    </button>
                   </div>
                 </div>
 
